@@ -266,27 +266,22 @@
         let isFirebaseReady = false;
 
         try {
-            if (firebaseConfig.apiKey !== "AIzaSyDaGRXYekB8nSGD6RfMJMuJD_h5cogmSbE") {
-                firebase.initializeApp(firebaseConfig);
-                auth = firebase.auth();
-                db = firebase.firestore();
-                isFirebaseReady = true;
-                
-                // Auth Listener
-                auth.onAuthStateChanged(user => {
-                    currentUser = user;
-                    updateAuthUI(user);
-                    if (user) {
-                        loadFromCloud();
-                    } else {
-                        // If logged out, revert to local storage
-                        loadFromLocal();
-                    }
-                });
-            } else {
-                console.warn("Firebase not configured. Using Local Storage only.");
-                document.getElementById('login-btn').style.display = 'none'; // Hide button if not configured
-            }
+            firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            isFirebaseReady = true;
+            
+            // Auth Listener
+            auth.onAuthStateChanged(user => {
+                currentUser = user;
+                updateAuthUI(user);
+                if (user) {
+                    loadFromCloud();
+                } else {
+                    // If logged out, revert to local storage
+                    loadFromLocal();
+                }
+            });
         } catch (e) {
             console.error("Firebase Error:", e);
         }
@@ -450,7 +445,7 @@
         function deleteTransaction(id) {
             if(confirm("Delete this transaction?")) {
                 if (!currentUser) {
-                    transactions = transactions.filter(t => t.id !== id);
+                    transactions = transactions.filter(t => String(t.id) !== String(id));
                 }
                 saveData(null, id);
             }
@@ -523,7 +518,7 @@
                         </div>
                         <div class="flex items-center gap-3">
                             <span class="font-bold ${colorClass}">${sign}${formatCurrency(t.amount).replace('₹','')}</span>
-                            <button onclick="deleteTransaction(${t.id})" class="text-slate-300 hover:text-red-500 p-2">
+                            <button onclick="deleteTransaction('${t.id}')" class="text-slate-300 hover:text-red-500 p-2">
                                 <i class="fa-solid fa-trash text-sm"></i>
                             </button>
                         </div>
