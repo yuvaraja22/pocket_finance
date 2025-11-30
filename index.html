@@ -103,10 +103,19 @@
                 <i class="fa-solid fa-chart-pie"></i>
             </button>
 
-            <div id="user-profile" class="hidden flex items-center gap-2">
-                <img id="user-avatar" src="" class="w-10 h-10 rounded-full border-2 border-white shadow-sm" alt="User">
-                <button onclick="googleLogout()"
-                    class="text-xs text-red-500 font-medium bg-red-50 px-2 py-1 rounded">Logout</button>
+            <div id="user-profile" class="hidden relative flex items-center gap-2">
+                <img id="user-avatar" src="" onclick="toggleProfileMenu()"
+                    class="w-10 h-10 rounded-full border-2 border-white shadow-sm cursor-pointer hover:scale-105 transition"
+                    alt="User">
+
+                <!-- Dropdown Menu -->
+                <div id="profile-menu"
+                    class="hidden absolute top-12 right-0 bg-white shadow-xl rounded-xl p-1 z-50 min-w-[140px] border border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button onclick="googleLogout()"
+                        class="w-full text-left text-sm text-red-500 font-medium hover:bg-red-50 px-3 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-right-from-bracket"></i> Logout
+                    </button>
+                </div>
             </div>
         </div>
     </header>
@@ -824,6 +833,20 @@
                 btn.innerHTML = originalIcon;
             });
         }
+
+        function toggleProfileMenu() {
+            const menu = document.getElementById('profile-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        // Close menu when clicking outside
+        window.addEventListener('click', (e) => {
+            const menu = document.getElementById('profile-menu');
+            const avatar = document.getElementById('user-avatar');
+            if (menu && !menu.classList.contains('hidden') && e.target !== avatar && !menu.contains(e.target)) {
+                menu.classList.add('hidden');
+            }
+        });
 
         // --- Analytics Logic ---
 
