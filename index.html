@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -95,6 +96,11 @@
             <button id="login-btn" onclick="googleLogin()"
                 class="hidden bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-full flex items-center gap-2 text-xs font-bold hover:bg-slate-50 transition">
                 <i class="fa-brands fa-google text-red-500"></i> Sync
+            </button>
+
+            <button onclick="toggleAnalytics()"
+                class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition">
+                <i class="fa-solid fa-chart-pie"></i>
             </button>
 
             <div id="user-profile" class="hidden flex items-center gap-2">
@@ -213,6 +219,86 @@
                     Add Transaction
                 </button>
             </form>
+        </div>
+    </div>
+
+    </div>
+
+    <!-- Analytics Modal -->
+    <div id="analytics-modal" class="modal fixed inset-0 z-50 flex flex-col bg-bg overflow-hidden">
+        <div class="bg-white px-6 py-4 shadow-sm flex justify-between items-center z-10">
+            <h2 class="text-xl font-bold text-slate-900">Analytics</h2>
+            <button onclick="toggleAnalytics()"
+                class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 pb-24 no-scrollbar">
+            <!-- Controls -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm mb-6">
+                <div class="flex gap-2 mb-4 overflow-x-auto no-scrollbar pb-1">
+                    <button onclick="setFilter('thisMonth')"
+                        class="filter-btn px-4 py-2 rounded-full text-xs font-bold bg-primary text-white whitespace-nowrap"
+                        id="btn-thisMonth">This Month</button>
+                    <button onclick="setFilter('lastMonth')"
+                        class="filter-btn px-4 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-500 whitespace-nowrap"
+                        id="btn-lastMonth">Last Month</button>
+                    <button onclick="setFilter('all')"
+                        class="filter-btn px-4 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-500 whitespace-nowrap"
+                        id="btn-all">All Time</button>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">Start</label>
+                        <input type="date" id="date-start" onchange="customDateFilter()"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs font-semibold">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 uppercase">End</label>
+                        <input type="date" id="date-end" onchange="customDateFilter()"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs font-semibold">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-3 gap-2 mb-6">
+                <div class="bg-green-50 p-3 rounded-xl border border-green-100">
+                    <p class="text-[10px] text-green-600 font-bold uppercase mb-1">Income</p>
+                    <p class="text-sm font-bold text-green-700" id="analytics-income">₹0</p>
+                </div>
+                <div class="bg-red-50 p-3 rounded-xl border border-red-100">
+                    <p class="text-[10px] text-red-600 font-bold uppercase mb-1">Expense</p>
+                    <p class="text-sm font-bold text-red-700" id="analytics-expense">₹0</p>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-xl border border-blue-100">
+                    <p class="text-[10px] text-blue-600 font-bold uppercase mb-1">Balance</p>
+                    <p class="text-sm font-bold text-blue-700" id="analytics-balance">₹0</p>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="bg-white p-4 rounded-2xl shadow-sm mb-6">
+                <h3 class="font-bold text-slate-800 mb-4 text-sm">Expense Breakdown</h3>
+                <div class="h-64 relative">
+                    <canvas id="expenseChart"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl shadow-sm mb-24">
+                <h3 class="font-bold text-slate-800 mb-4 text-sm">Income vs Expense</h3>
+                <div class="h-48 relative">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="absolute bottom-6 left-0 right-0 px-6 flex justify-center">
+            <button onclick="exportAnalyticsReport()"
+                class="bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 font-bold text-sm hover:bg-slate-900 active:scale-95 transition">
+                <i class="fa-solid fa-file-export"></i> Export Report
+            </button>
         </div>
     </div>
 
@@ -649,6 +735,209 @@
             html2pdf().set(opt).from(element).save().then(() => {
                 element.classList.add('hidden');
                 btn.innerHTML = originalIcon;
+            });
+        }
+
+        // --- Analytics Logic ---
+
+        let expenseChartInstance = null;
+        let trendChartInstance = null;
+        let currentFilteredTransactions = [];
+
+        function toggleAnalytics() {
+            const modal = document.getElementById('analytics-modal');
+            if (modal.classList.contains('active')) {
+                modal.classList.remove('active');
+            } else {
+                modal.classList.add('active');
+                setFilter('thisMonth');
+            }
+        }
+
+        function setFilter(type) {
+            const now = new Date();
+            let start, end;
+
+            // Update Buttons
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('bg-primary', 'text-white');
+                b.classList.add('bg-slate-100', 'text-slate-500');
+            });
+            document.getElementById(`btn-${type}`).classList.remove('bg-slate-100', 'text-slate-500');
+            document.getElementById(`btn-${type}`).classList.add('bg-primary', 'text-white');
+
+            if (type === 'thisMonth') {
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+            } else if (type === 'lastMonth') {
+                start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                end = new Date(now.getFullYear(), now.getMonth(), 0);
+            } else {
+                start = new Date(0); // Beginning of time
+                end = new Date();
+            }
+
+            // Set inputs (adjust for timezone offset to show correct date string)
+            const formatDate = (d) => {
+                const offset = d.getTimezoneOffset() * 60000;
+                return new Date(d.getTime() - offset).toISOString().split('T')[0];
+            };
+
+            if (type !== 'all') {
+                document.getElementById('date-start').value = formatDate(start);
+                document.getElementById('date-end').value = formatDate(end);
+            } else {
+                document.getElementById('date-start').value = '';
+                document.getElementById('date-end').value = '';
+            }
+
+            renderAnalytics(start, end);
+        }
+
+        function customDateFilter() {
+            const startStr = document.getElementById('date-start').value;
+            const endStr = document.getElementById('date-end').value;
+
+            if (startStr && endStr) {
+                // Deselect presets
+                document.querySelectorAll('.filter-btn').forEach(b => {
+                    b.classList.remove('bg-primary', 'text-white');
+                    b.classList.add('bg-slate-100', 'text-slate-500');
+                });
+                renderAnalytics(new Date(startStr), new Date(endStr));
+            }
+        }
+
+        function renderAnalytics(start, end) {
+            // Filter Transactions
+            currentFilteredTransactions = transactions.filter(t => {
+                const d = new Date(t.date);
+                // Reset time part for accurate date comparison
+                d.setHours(0, 0, 0, 0);
+                const s = new Date(start); s.setHours(0, 0, 0, 0);
+                const e = new Date(end); e.setHours(23, 59, 59, 999);
+                return d >= s && d <= e;
+            });
+
+            // Calculate Totals
+            const income = currentFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+            const expense = currentFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+            const balance = income - expense;
+
+            document.getElementById('analytics-income').textContent = formatCurrency(income);
+            document.getElementById('analytics-expense').textContent = formatCurrency(expense);
+            document.getElementById('analytics-balance').textContent = formatCurrency(balance);
+
+            updateCharts(currentFilteredTransactions);
+        }
+
+        function updateCharts(data) {
+            // 1. Expense Breakdown
+            const expenseData = {};
+            data.filter(t => t.type === 'expense').forEach(t => {
+                expenseData[t.category] = (expenseData[t.category] || 0) + t.amount;
+            });
+
+            const ctx1 = document.getElementById('expenseChart').getContext('2d');
+            if (expenseChartInstance) expenseChartInstance.destroy();
+
+            expenseChartInstance = new Chart(ctx1, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(expenseData),
+                    datasets: [{
+                        data: Object.values(expenseData),
+                        backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } }
+                    }
+                }
+            });
+
+            // 2. Trend (Income vs Expense)
+            // Group by Date
+            const dateMap = {};
+            data.forEach(t => {
+                const d = new Date(t.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                if (!dateMap[d]) dateMap[d] = { income: 0, expense: 0 };
+                if (t.type === 'income') dateMap[d].income += t.amount;
+                else dateMap[d].expense += t.amount;
+            });
+
+            // Sort dates
+            const sortedDates = Object.keys(dateMap).sort((a, b) => new Date(a) - new Date(b));
+
+            const ctx2 = document.getElementById('trendChart').getContext('2d');
+            if (trendChartInstance) trendChartInstance.destroy();
+
+            trendChartInstance = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: sortedDates,
+                    datasets: [
+                        { label: 'Income', data: sortedDates.map(d => dateMap[d].income), backgroundColor: '#10b981', borderRadius: 4 },
+                        { label: 'Expense', data: sortedDates.map(d => dateMap[d].expense), backgroundColor: '#ef4444', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: true, grid: { borderDash: [2, 4] } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+        }
+
+        function exportAnalyticsReport() {
+            // Reuse existing PDF container but populate with filtered data
+            const pdfBody = document.getElementById('pdf-table-body');
+            pdfBody.innerHTML = '';
+
+            const income = currentFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+            const expense = currentFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+
+            document.getElementById('pdf-date').textContent = `Report for ${document.getElementById('date-start').value || 'All Time'} to ${document.getElementById('date-end').value || 'Now'}`;
+            document.getElementById('pdf-income').textContent = formatCurrency(income);
+            document.getElementById('pdf-expense').textContent = formatCurrency(expense);
+            document.getElementById('pdf-balance').textContent = formatCurrency(income - expense);
+
+            currentFilteredTransactions.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-100";
+                const isInc = t.type === 'income';
+                tr.innerHTML = `
+                    <td class="py-2 text-gray-500">${new Date(t.date).toLocaleDateString()}</td>
+                    <td class="py-2 font-medium">${t.description}</td>
+                    <td class="py-2 text-gray-500">${t.category}</td>
+                    <td class="py-2 text-right font-bold ${isInc ? 'text-green-600' : 'text-red-600'}">
+                        ${isInc ? '+' : '-'}${formatCurrency(t.amount)}
+                    </td>
+                `;
+                pdfBody.appendChild(tr);
+            });
+
+            const element = document.getElementById('pdf-container');
+            element.classList.remove('hidden');
+
+            const opt = {
+                margin: 0.5,
+                filename: `Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.classList.add('hidden');
             });
         }
     </script>
