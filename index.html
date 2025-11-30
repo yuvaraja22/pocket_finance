@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Pocket Finance</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="My Wallet">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/192/wallet.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#2563eb',
+                        secondary: '#475569',
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        bg: '#f8fafc',
+                        card: '#ffffff'
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* iOS Safe Area adjustments */
+        body {
+            padding-top: env(safe-area-inset-top);
+            padding-bottom: env(safe-area-inset-bottom);
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        
+        /* Hide Scrollbar but allow scrolling */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Smooth inputs */
+        input, select {
+            font-size: 16px !important; /* Prevents iOS zoom on focus */
+        }
+
+        /* Modal Animation */
+        .modal {
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            opacity: 0;
+            pointer-events: none;
+            transform: scale(0.95);
+        }
+        .modal.active {
+            opacity: 1;
+            pointer-events: auto;
+            transform: scale(1);
+        }
+    </style>
+</head>
+<body class="bg-bg text-slate-800 h-screen flex flex-col overflow-hidden">
+
+    <header class="px-6 pt-6 pb-4 bg-white shadow-sm z-10 flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900 tracking-tight">My Wallet</h1>
+            <p class="text-xs text-slate-500" id="current-date">Loading...</p>
+        </div>
+        <div class="flex gap-3 items-center">
+            <button id="login-btn" onclick="googleLogin()" class="hidden bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-full flex items-center gap-2 text-xs font-bold hover:bg-slate-50 transition">
+                <i class="fa-brands fa-google text-red-500"></i> Sync
+            </button>
+
+            <div id="user-profile" class="hidden flex items-center gap-2">
+                <img id="user-avatar" src="" class="w-10 h-10 rounded-full border-2 border-white shadow-sm" alt="User">
+                <button onclick="googleLogout()" class="text-xs text-red-500 font-medium bg-red-50 px-2 py-1 rounded">Logout</button>
+            </div>
+
+            <button onclick="exportToPDF()" class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition">
+                <i class="fa-solid fa-file-pdf"></i>
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 overflow-y-auto no-scrollbar p-4 pb-24" id="main-container">
+        
+        <div class="bg-gradient-to-br from-primary to-blue-600 rounded-2xl p-6 text-white shadow-lg mb-6 relative overflow-hidden">
+            <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
+            <p class="text-blue-100 text-sm font-medium mb-1">Total Balance</p>
+            <h2 class="text-3xl font-bold tracking-tight mb-4" id="total-balance">₹0.00</h2>
+            
+            <div class="flex gap-4">
+                <div class="flex-1 bg-white/20 rounded-xl p-3 backdrop-blur-sm">
+                    <div class="flex items-center gap-2 mb-1">
+                        <div class="w-5 h-5 rounded-full bg-green-400/30 flex items-center justify-center">
+                            <i class="fa-solid fa-arrow-down text-green-300 text-[10px]"></i>
+                        </div>
+                        <span class="text-xs text-blue-50">Income</span>
+                    </div>
+                    <p class="font-semibold text-lg" id="total-income">₹0.00</p>
+                </div>
+                <div class="flex-1 bg-white/20 rounded-xl p-3 backdrop-blur-sm">
+                    <div class="flex items-center gap-2 mb-1">
+                        <div class="w-5 h-5 rounded-full bg-red-400/30 flex items-center justify-center">
+                            <i class="fa-solid fa-arrow-up text-red-300 text-[10px]"></i>
+                        </div>
+                        <span class="text-xs text-blue-50">Expense</span>
+                    </div>
+                    <p class="font-semibold text-lg" id="total-expense">₹0.00</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center mb-4 px-1">
+            <h3 class="font-bold text-lg text-slate-800">Transactions</h3>
+            <button onclick="clearAllData()" class="text-xs text-red-500 font-medium">Reset</button>
+        </div>
+
+        <div id="empty-state" class="hidden flex-col items-center justify-center py-12 text-slate-400">
+            <i class="fa-solid fa-receipt text-4xl mb-3 opacity-50"></i>
+            <p class="text-sm">No transactions yet.</p>
+        </div>
+
+        <div id="transaction-list" class="space-y-3">
+            </div>
+    </main>
+
+    <div class="fixed bottom-6 right-6 z-20">
+        <button onclick="toggleModal('add-modal')" class="w-14 h-14 bg-primary text-white rounded-full shadow-xl shadow-blue-500/40 flex items-center justify-center text-2xl hover:bg-blue-700 active:scale-90 transition">
+            <i class="fa-solid fa-plus"></i>
+        </button>
+    </div>
+
+    <div id="add-modal" class="modal fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 sm:p-0">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="toggleModal('add-modal')"></div>
+        
+        <div class="bg-white w-full max-w-sm rounded-2xl p-6 relative shadow-2xl z-10 mb-4 sm:mb-0">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">New Transaction</h3>
+                <button onclick="toggleModal('add-modal')" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <form id="transaction-form" onsubmit="addTransaction(event)">
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Amount</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">₹</span>
+                        <input type="number" id="amount" step="0.01" inputmode="decimal" required 
+                            class="w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white text-lg font-semibold"
+                            placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Description <span class="text-slate-300 font-normal lowercase">(optional)</span></label>
+                    <input type="text" id="description" 
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white"
+                        placeholder="e.g. Groceries">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Type</label>
+                        <select id="type" onchange="updateCategories()" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white appearance-none">
+                            <option value="expense">Expense</option>
+                            <option value="income">Income</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Category</label>
+                        <select id="category" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white appearance-none">
+                            </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-primary text-white font-bold py-4 rounded-xl hover:bg-blue-700 active:scale-95 transition shadow-lg shadow-blue-500/30">
+                    Add Transaction
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div id="pdf-container" class="hidden bg-white p-8">
+        <h1 class="text-2xl font-bold mb-2 text-center">Financial Report</h1>
+        <p class="text-center text-gray-500 text-sm mb-6" id="pdf-date"></p>
+        
+        <div class="grid grid-cols-3 gap-4 mb-6 border-b pb-6">
+            <div class="text-center">
+                <p class="text-xs text-gray-500 uppercase">Income</p>
+                <p class="text-green-600 font-bold text-lg" id="pdf-income"></p>
+            </div>
+            <div class="text-center">
+                <p class="text-xs text-gray-500 uppercase">Expenses</p>
+                <p class="text-red-600 font-bold text-lg" id="pdf-expense"></p>
+            </div>
+            <div class="text-center">
+                <p class="text-xs text-gray-500 uppercase">Net Balance</p>
+                <p class="text-blue-600 font-bold text-lg" id="pdf-balance"></p>
+            </div>
+        </div>
+
+        <table class="w-full text-left text-sm">
+            <thead>
+                <tr class="border-b-2 border-gray-200">
+                    <th class="py-2">Date</th>
+                    <th class="py-2">Description</th>
+                    <th class="py-2">Category</th>
+                    <th class="py-2 text-right">Amount</th>
+                </tr>
+            </thead>
+            <tbody id="pdf-table-body">
+                </tbody>
+        </table>
+    </div>
+
+    <script>
+        // ==========================================
+        // FIREBASE CONFIGURATION (REQUIRED FOR SYNC)
+        // ==========================================
+        // 1. Go to console.firebase.google.com
+        // 2. Create a new project
+        // 3. Enable "Authentication" > "Google"
+        // 4. Enable "Cloud Firestore" > "Create Database"
+        // 5. Go to Project Settings > General > "Your apps" > SDK Setup and copy the config object below:
+        
+        // const firebaseConfig = {
+        //     apiKey: "YOUR_API_KEY_HERE",
+        //     authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+        //     projectId: "YOUR_PROJECT_ID",
+        //     storageBucket: "YOUR_PROJECT_ID.appspot.com",
+        //     messagingSenderId: "YOUR_SENDER_ID",
+        //     appId: "YOUR_APP_ID"
+        // };
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDaGRXYekB8nSGD6RfMJMuJD_h5cogmSbE",
+            authDomain: "my-finance-tracker-yuva.firebaseapp.com",
+            projectId: "my-finance-tracker-yuva",
+            storageBucket: "my-finance-tracker-yuva.firebasestorage.app",
+            messagingSenderId: "230460049894",
+            appId: "1:230460049894:web:0a26d8c5503805a2b72e27",
+            measurementId: "G-HM2JXMVZ9T"
+        };
+        // Initialize Firebase safely
+        let auth, db, currentUser = null;
+        let isFirebaseReady = false;
+
+        try {
+            if (firebaseConfig.apiKey !== "AIzaSyDaGRXYekB8nSGD6RfMJMuJD_h5cogmSbE") {
+                firebase.initializeApp(firebaseConfig);
+                auth = firebase.auth();
+                db = firebase.firestore();
+                isFirebaseReady = true;
+                
+                // Auth Listener
+                auth.onAuthStateChanged(user => {
+                    currentUser = user;
+                    updateAuthUI(user);
+                    if (user) {
+                        loadFromCloud();
+                    } else {
+                        // If logged out, revert to local storage
+                        loadFromLocal();
+                    }
+                });
+            } else {
+                console.warn("Firebase not configured. Using Local Storage only.");
+                document.getElementById('login-btn').style.display = 'none'; // Hide button if not configured
+            }
+        } catch (e) {
+            console.error("Firebase Error:", e);
+        }
+
+        // --- Data & State ---
+        let transactions = [];
+        
+        const categories = {
+            expense: ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 'Entertainment', 'Other'],
+            income: ['Salary', 'Freelance', 'Gift', 'Investment', 'Other']
+        };
+
+        const iconMap = {
+            'Food': 'fa-utensils',
+            'Transport': 'fa-car',
+            'Shopping': 'fa-bag-shopping',
+            'Bills': 'fa-file-invoice-dollar',
+            'Health': 'fa-heart-pulse',
+            'Entertainment': 'fa-film',
+            'Salary': 'fa-money-bill-wave',
+            'Freelance': 'fa-laptop-code',
+            'Gift': 'fa-gift',
+            'Investment': 'fa-chart-line',
+            'Other': 'fa-circle-question'
+        };
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+            updateCategories();
+            
+            // Initial load from local storage (will be overwritten if Firebase loads user)
+            if(!currentUser) loadFromLocal();
+        });
+
+        // --- Auth Functions ---
+        function googleLogin() {
+            if (!isFirebaseReady) return alert("Please configure Firebase keys in the code first.");
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).catch(error => alert(error.message));
+        }
+
+        function googleLogout() {
+            auth.signOut();
+            transactions = []; // Clear current view
+            loadFromLocal(); // Revert to local
+        }
+
+        function updateAuthUI(user) {
+            const loginBtn = document.getElementById('login-btn');
+            const userProfile = document.getElementById('user-profile');
+            const avatar = document.getElementById('user-avatar');
+
+            if (user) {
+                loginBtn.classList.add('hidden');
+                loginBtn.classList.remove('flex');
+                userProfile.classList.remove('hidden');
+                userProfile.classList.add('flex');
+                avatar.src = user.photoURL;
+            } else {
+                loginBtn.classList.remove('hidden');
+                loginBtn.classList.add('flex');
+                userProfile.classList.add('hidden');
+                userProfile.classList.remove('flex');
+            }
+        }
+
+        // --- Storage Logic ---
+        function loadFromLocal() {
+            transactions = JSON.parse(localStorage.getItem('transactions')) || [];
+            renderUI();
+        }
+
+        function loadFromCloud() {
+            if (!currentUser) return;
+            // Listen for realtime updates
+            db.collection('users').doc(currentUser.uid).collection('transactions')
+                .orderBy('date', 'desc')
+                .onSnapshot(snapshot => {
+                    transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    renderUI();
+                });
+        }
+
+        function saveData(newTx = null, deleteId = null) {
+            // If Logged In -> Use Cloud
+            if (currentUser && isFirebaseReady) {
+                if (newTx) {
+                    // Add new
+                    // We remove ID from object because Firestore creates its own or we use the specific one
+                    const { id, ...data } = newTx;
+                    db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(newTx.id)).set(data);
+                }
+                if (deleteId) {
+                    // Delete
+                    db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(deleteId)).delete();
+                }
+            } 
+            // If Logged Out -> Use LocalStorage
+            else {
+                localStorage.setItem('transactions', JSON.stringify(transactions));
+                renderUI(); // Only need to manually re-render for local storage
+            }
+        }
+
+        // --- Core Functions ---
+
+        function updateCategories() {
+            const type = document.getElementById('type').value;
+            const categorySelect = document.getElementById('category');
+            categorySelect.innerHTML = '';
+            
+            categories[type].forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat;
+                option.textContent = cat;
+                categorySelect.appendChild(option);
+            });
+        }
+
+        function formatCurrency(amount) {
+            // Updated to Indian Rupee
+            return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+        }
+
+        function addTransaction(e) {
+            e.preventDefault();
+            
+            const amount = parseFloat(document.getElementById('amount').value);
+            // Updated: Description is optional, default to "Untitled"
+            const description = document.getElementById('description').value.trim() || 'Untitled';
+            const type = document.getElementById('type').value;
+            const category = document.getElementById('category').value;
+
+            if (!amount) return;
+
+            const newTransaction = {
+                id: Date.now(),
+                date: new Date().toISOString(),
+                amount,
+                description,
+                type,
+                category
+            };
+
+            if (!currentUser) {
+                transactions.unshift(newTransaction);
+            }
+            
+            saveData(newTransaction, null);
+            
+            // UI cleanup for local storage happens in saveData, for cloud it happens via onSnapshot
+            if (!currentUser) renderUI(); 
+            
+            // Reset form and close modal
+            document.getElementById('transaction-form').reset();
+            updateCategories();
+            toggleModal('add-modal');
+        }
+
+        function deleteTransaction(id) {
+            if(confirm("Delete this transaction?")) {
+                if (!currentUser) {
+                    transactions = transactions.filter(t => t.id !== id);
+                }
+                saveData(null, id);
+            }
+        }
+
+        function clearAllData() {
+            const msg = currentUser ? "Clear all CLOUD data?" : "Clear all LOCAL data?";
+            if(confirm(`${msg} This cannot be undone.`)) {
+                if(currentUser) {
+                    // Batch delete for firestore is complex for simple JS, looping for simplicity here
+                    transactions.forEach(t => {
+                        db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(t.id)).delete();
+                    });
+                } else {
+                    transactions = [];
+                    saveData();
+                }
+            }
+        }
+
+        // --- UI Rendering ---
+
+        function renderUI() {
+            const list = document.getElementById('transaction-list');
+            const emptyState = document.getElementById('empty-state');
+            
+            // Calculate Totals
+            const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+            const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+            const balance = income - expense;
+
+            // Update Cards
+            document.getElementById('total-balance').textContent = formatCurrency(balance);
+            document.getElementById('total-income').textContent = formatCurrency(income);
+            document.getElementById('total-expense').textContent = formatCurrency(expense);
+
+            // Render List
+            list.innerHTML = '';
+            
+            if (transactions.length === 0) {
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+            } else {
+                emptyState.classList.add('hidden');
+                emptyState.classList.remove('flex');
+
+                transactions.forEach(t => {
+                    const isIncome = t.type === 'income';
+                    const colorClass = isIncome ? 'text-green-600' : 'text-slate-900';
+                    const iconBg = isIncome ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500';
+                    const sign = isIncome ? '+' : '-';
+                    const date = new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+
+                    const item = document.createElement('div');
+                    item.className = 'bg-white p-4 rounded-xl shadow-sm flex items-center justify-between active:scale-[0.98] transition touch-manipulation';
+                    item.onclick = (e) => {
+                        if(e.target.closest('button')) return;
+                    };
+
+                    // Replaced .replace('$','') with .replace('₹','') to ensure formatting is clean
+                    item.innerHTML = `
+                        <div class="flex items-center gap-4">
+                            <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center">
+                                <i class="fa-solid ${iconMap[t.category] || 'fa-circle'}"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-sm text-slate-900">${t.description}</h4>
+                                <p class="text-xs text-slate-500">${t.category} • ${date}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="font-bold ${colorClass}">${sign}${formatCurrency(t.amount).replace('₹','')}</span>
+                            <button onclick="deleteTransaction(${t.id})" class="text-slate-300 hover:text-red-500 p-2">
+                                <i class="fa-solid fa-trash text-sm"></i>
+                            </button>
+                        </div>
+                    `;
+                    list.appendChild(item);
+                });
+            }
+        }
+
+        // --- Helper Functions ---
+
+        function toggleModal(id) {
+            const modal = document.getElementById(id);
+            if (modal.classList.contains('active')) {
+                modal.classList.remove('active');
+            } else {
+                modal.classList.add('active');
+                setTimeout(() => document.getElementById('amount').focus(), 100);
+            }
+        }
+
+        // --- PDF Export Logic ---
+
+        function exportToPDF() {
+            const btn = document.querySelector('header button:last-child');
+            const originalIcon = btn.innerHTML;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+            const pdfBody = document.getElementById('pdf-table-body');
+            pdfBody.innerHTML = '';
+            
+            const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+            const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+
+            document.getElementById('pdf-date').textContent = `Generated on ${new Date().toLocaleString()}`;
+            document.getElementById('pdf-income').textContent = formatCurrency(income);
+            document.getElementById('pdf-expense').textContent = formatCurrency(expense);
+            document.getElementById('pdf-balance').textContent = formatCurrency(income - expense);
+
+            transactions.forEach(t => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-100";
+                const isInc = t.type === 'income';
+                tr.innerHTML = `
+                    <td class="py-2 text-gray-500">${new Date(t.date).toLocaleDateString()}</td>
+                    <td class="py-2 font-medium">${t.description}</td>
+                    <td class="py-2 text-gray-500">${t.category}</td>
+                    <td class="py-2 text-right font-bold ${isInc ? 'text-green-600' : 'text-red-600'}">
+                        ${isInc ? '+' : '-'}${formatCurrency(t.amount)}
+                    </td>
+                `;
+                pdfBody.appendChild(tr);
+            });
+
+            const element = document.getElementById('pdf-container');
+            element.classList.remove('hidden');
+
+            const opt = {
+                margin:       0.5,
+                filename:     `Finance_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                element.classList.add('hidden');
+                btn.innerHTML = originalIcon;
+            });
+        }
+    </script>
+</body>
+</html>
