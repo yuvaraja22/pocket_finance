@@ -108,11 +108,6 @@
                 <button onclick="googleLogout()"
                     class="text-xs text-red-500 font-medium bg-red-50 px-2 py-1 rounded">Logout</button>
             </div>
-
-            <button onclick="exportToPDF()"
-                class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition">
-                <i class="fa-solid fa-file-pdf"></i>
-            </button>
         </div>
     </header>
 
@@ -148,7 +143,12 @@
 
         <div class="flex justify-between items-center mb-4 px-1">
             <h3 class="font-bold text-lg text-slate-800">Transactions</h3>
-            <button onclick="clearAllData()" class="text-xs text-red-500 font-medium">Reset</button>
+            <select id="filter-type" onchange="renderUI()"
+                class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none">
+                <option value="all">All</option>
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+            </select>
         </div>
 
         <div id="empty-state" class="hidden flex-col items-center justify-center py-12 text-slate-400">
@@ -187,6 +187,12 @@
                             class="w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white text-lg font-semibold"
                             placeholder="0.00">
                     </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Date</label>
+                    <input type="date" id="transaction-date" required
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white text-lg font-semibold">
                 </div>
 
                 <div class="mb-4">
@@ -517,14 +523,19 @@
             const description = document.getElementById('description').value.trim() || 'Untitled';
             const type = document.getElementById('type').value;
             const category = document.getElementById('category').value;
+            const dateInput = document.getElementById('transaction-date').value;
 
-            if (!amount) return;
+            if (!amount || !dateInput) return;
+
+            // Create ISO string from date input (preserve time if editing, else set to noon to avoid timezone issues)
+            const dateObj = new Date(dateInput);
+            const isoDate = dateObj.toISOString();
 
             if (editingTransactionId) {
                 // UPDATE EXISTING
                 const updatedTx = {
                     id: editingTransactionId,
-                    date: transactions.find(t => String(t.id) === String(editingTransactionId))?.date || new Date().toISOString(), // Keep original date
+                    date: isoDate,
                     amount,
                     description,
                     type,
@@ -536,12 +547,12 @@
                     if (index !== -1) transactions[index] = updatedTx;
                 }
 
-                saveData(updatedTx, null); // In cloud mode, this overwrites because we pass the ID
+                saveData(updatedTx, null);
             } else {
                 // CREATE NEW
                 const newTransaction = {
                     id: Date.now(),
-                    date: new Date().toISOString(),
+                    date: isoDate,
                     amount,
                     description,
                     type,
@@ -572,6 +583,12 @@
             updateCategories(); // Refresh categories based on type
             document.getElementById('category').value = tx.category;
 
+            // Format date for input
+            const d = new Date(tx.date);
+            const offset = d.getTimezoneOffset() * 60000;
+            const dateStr = new Date(d.getTime() - offset).toISOString().split('T')[0];
+            document.getElementById('transaction-date').value = dateStr;
+
             document.getElementById('modal-title').textContent = "Edit Transaction";
             document.getElementById('submit-btn').textContent = "Update Transaction";
 
@@ -581,6 +598,13 @@
         function openAddModal() {
             editingTransactionId = null;
             document.getElementById('transaction-form').reset();
+
+            // Set default date to today
+            const now = new Date();
+            const offset = now.getTimezoneOffset() * 60000;
+            const today = new Date(now.getTime() - offset).toISOString().split('T')[0];
+            document.getElementById('transaction-date').value = today;
+
             document.getElementById('modal-title').textContent = "New Transaction";
             document.getElementById('submit-btn').textContent = "Add Transaction";
             updateCategories();
@@ -616,8 +640,9 @@
         function renderUI() {
             const list = document.getElementById('transaction-list');
             const emptyState = document.getElementById('empty-state');
+            const filterType = document.getElementById('filter-type').value;
 
-            // Calculate Totals
+            // Calculate Totals (Always based on ALL transactions)
             const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
             const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
             const balance = income - expense;
@@ -627,52 +652,114 @@
             document.getElementById('total-income').textContent = formatCurrency(income);
             document.getElementById('total-expense').textContent = formatCurrency(expense);
 
+            // Filter List
+            let filtered = transactions;
+            if (filterType !== 'all') {
+                filtered = transactions.filter(t => t.type === filterType);
+            }
+
             // Render List
             list.innerHTML = '';
 
-            if (transactions.length === 0) {
+            if (filtered.length === 0) {
                 emptyState.classList.remove('hidden');
                 emptyState.classList.add('flex');
             } else {
                 emptyState.classList.add('hidden');
                 emptyState.classList.remove('flex');
 
-                transactions.forEach(t => {
-                    const isIncome = t.type === 'income';
-                    const colorClass = isIncome ? 'text-green-600' : 'text-slate-900';
-                    const iconBg = isIncome ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500';
-                    const sign = isIncome ? '+' : '-';
-                    const date = new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-
-                    const item = document.createElement('div');
-                    item.className = 'bg-white p-4 rounded-xl shadow-sm flex items-center justify-between active:scale-[0.98] transition touch-manipulation';
-                    item.onclick = (e) => {
-                        if (e.target.closest('button')) return;
-                    };
-
-                    // Replaced .replace('$','') with .replace('₹','') to ensure formatting is clean
-                    item.innerHTML = `
-                        <div class="flex items-center gap-4">
-                            <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center">
-                                <i class="fa-solid ${iconMap[t.category] || 'fa-circle'}"></i>
-                            </div>
-                            <div>
-                                <h4 class="font-semibold text-sm text-slate-900">${t.description}</h4>
-                                <p class="text-xs text-slate-500">${t.category} • ${date}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3">
-                            <span class="font-bold ${colorClass}">${sign}${formatCurrency(t.amount).replace('₹', '')}</span>
-                            <button onclick="editTransaction('${t.id}')" class="text-slate-300 hover:text-blue-500 p-2">
-                                <i class="fa-solid fa-pen text-sm"></i>
-                            </button>
-                            <button onclick="deleteTransaction('${t.id}')" class="text-slate-300 hover:text-red-500 p-2">
-                                <i class="fa-solid fa-trash text-sm"></i>
-                            </button>
-                        </div>
-                    `;
-                    list.appendChild(item);
+                // Group by Month
+                const groups = {};
+                filtered.forEach(t => {
+                    const date = new Date(t.date);
+                    const key = date.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+                    if (!groups[key]) groups[key] = { items: [], total: 0 };
+                    groups[key].items.push(t);
+                    groups[key].total += (t.type === 'income' ? t.amount : -t.amount);
                 });
+
+                Object.keys(groups).forEach(key => {
+                    const group = groups[key];
+                    const groupId = key.replace(/ /g, '-');
+
+                    const groupHeader = document.createElement('div');
+                    groupHeader.className = "flex justify-between items-center px-2 py-2 cursor-pointer select-none";
+                    groupHeader.onclick = () => toggleGroup(groupId);
+                    groupHeader.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <i id="icon-${groupId}" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform"></i>
+                            <h4 class="text-xs font-bold text-slate-500 uppercase">${key}</h4>
+                        </div>
+                        <span class="text-xs font-bold ${group.total >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(group.total)}</span>
+                    `;
+                    list.appendChild(groupHeader);
+
+                    const groupContent = document.createElement('div');
+                    groupContent.id = `group-${groupId}`;
+                    groupContent.className = "space-y-3 mb-4 transition-all overflow-hidden";
+
+                    group.items.forEach(t => {
+                        const isIncome = t.type === 'income';
+                        const colorClass = isIncome ? 'text-green-600' : 'text-slate-900';
+                        const iconBg = isIncome ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500';
+                        const sign = isIncome ? '+' : '-';
+                        const date = new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+
+                        const item = document.createElement('div');
+                        item.className = 'bg-white p-4 rounded-xl shadow-sm flex items-center justify-between active:scale-[0.98] transition touch-manipulation';
+                        item.onclick = (e) => {
+                            if (e.target.closest('button')) return;
+                        };
+
+                        item.innerHTML = `
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center">
+                                    <i class="fa-solid ${iconMap[t.category] || 'fa-circle'}"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-sm text-slate-900">${t.description}</h4>
+                                    <p class="text-xs text-slate-500">${t.category} • ${date}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold ${colorClass}">${sign}${formatCurrency(t.amount).replace('₹', '')}</span>
+                                <button onclick="editTransaction('${t.id}')" class="text-slate-300 hover:text-blue-500 p-2">
+                                    <i class="fa-solid fa-pen text-sm"></i>
+                                </button>
+                                <button onclick="deleteTransaction('${t.id}')" class="text-slate-300 hover:text-red-500 p-2">
+                                    <i class="fa-solid fa-trash text-sm"></i>
+                                </button>
+                            </div>
+                        `;
+                        groupContent.appendChild(item);
+                    });
+                    list.appendChild(groupContent);
+                });
+            }
+        }
+
+        function toggleGroup(id) {
+            const content = document.getElementById(`group-${id}`);
+            const icon = document.getElementById(`icon-${id}`);
+
+            if (content.style.maxHeight === '0px') {
+                content.style.maxHeight = content.scrollHeight + "px";
+                content.style.opacity = "1";
+                content.style.marginBottom = "1rem";
+                icon.style.transform = "rotate(0deg)";
+            } else {
+                // Initialize if inline style not set
+                if (!content.style.maxHeight) {
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    // Force reflow
+                    content.offsetHeight;
+                    content.style.maxHeight = "0px";
+                } else {
+                    content.style.maxHeight = "0px";
+                }
+                content.style.opacity = "0";
+                content.style.marginBottom = "0";
+                icon.style.transform = "rotate(-90deg)";
             }
         }
 
