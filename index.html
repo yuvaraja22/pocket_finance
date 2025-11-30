@@ -152,12 +152,21 @@
 
         <div class="flex justify-between items-center mb-4 px-1">
             <h3 class="font-bold text-lg text-slate-800">Transactions</h3>
-            <select id="filter-type" onchange="renderUI()"
-                class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none">
-                <option value="all">All</option>
-                <option value="income">Income</option>
-                <option value="expense">Expense</option>
-            </select>
+            <div class="flex gap-2">
+                <select id="filter-date" onchange="renderUI()"
+                    class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none">
+                    <option value="all">All Time</option>
+                    <option value="thisMonth">This Month</option>
+                    <option value="lastMonth">Last Month</option>
+                    <option value="thisYear">This Year</option>
+                </select>
+                <select id="filter-type" onchange="renderUI()"
+                    class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none">
+                    <option value="all">All Types</option>
+                    <option value="income">Income</option>
+                    <option value="expense">Expense</option>
+                </select>
+            </div>
         </div>
 
         <div id="empty-state" class="hidden flex-col items-center justify-center py-12 text-slate-400">
@@ -650,10 +659,38 @@
             const list = document.getElementById('transaction-list');
             const emptyState = document.getElementById('empty-state');
             const filterType = document.getElementById('filter-type').value;
+            const filterDate = document.getElementById('filter-date').value;
 
-            // Calculate Totals (Always based on ALL transactions)
-            const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-            const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+            // 1. Filter by Date Range
+            let dateFiltered = transactions;
+            const now = new Date();
+
+            if (filterDate === 'thisMonth') {
+                const start = new Date(now.getFullYear(), now.getMonth(), 1);
+                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+                dateFiltered = transactions.filter(t => {
+                    const d = new Date(t.date);
+                    return d >= start && d <= end;
+                });
+            } else if (filterDate === 'lastMonth') {
+                const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+                dateFiltered = transactions.filter(t => {
+                    const d = new Date(t.date);
+                    return d >= start && d <= end;
+                });
+            } else if (filterDate === 'thisYear') {
+                const start = new Date(now.getFullYear(), 0, 1);
+                const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+                dateFiltered = transactions.filter(t => {
+                    const d = new Date(t.date);
+                    return d >= start && d <= end;
+                });
+            }
+
+            // 2. Calculate Totals (Based on Date Filtered Data)
+            const income = dateFiltered.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+            const expense = dateFiltered.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
             const balance = income - expense;
 
             // Update Cards
@@ -661,16 +698,16 @@
             document.getElementById('total-income').textContent = formatCurrency(income);
             document.getElementById('total-expense').textContent = formatCurrency(expense);
 
-            // Filter List
-            let filtered = transactions;
+            // 3. Filter by Type
+            let finalFiltered = dateFiltered;
             if (filterType !== 'all') {
-                filtered = transactions.filter(t => t.type === filterType);
+                finalFiltered = dateFiltered.filter(t => t.type === filterType);
             }
 
             // Render List
             list.innerHTML = '';
 
-            if (filtered.length === 0) {
+            if (finalFiltered.length === 0) {
                 emptyState.classList.remove('hidden');
                 emptyState.classList.add('flex');
             } else {
@@ -679,7 +716,7 @@
 
                 // Group by Month
                 const groups = {};
-                filtered.forEach(t => {
+                finalFiltered.forEach(t => {
                     const date = new Date(t.date);
                     const key = date.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
                     if (!groups[key]) groups[key] = { items: [], total: 0 };
