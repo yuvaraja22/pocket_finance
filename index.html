@@ -742,7 +742,8 @@
 
                     const groupContent = document.createElement('div');
                     groupContent.id = `group-${groupId}`;
-                    groupContent.className = "space-y-3 mb-4 transition-all overflow-hidden";
+                    // Grid layout: 1 col mobile, 2 col tablet (sm), 3 col md, 4 col large screens
+                    groupContent.className = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 transition-all overflow-hidden";
 
                     group.items.forEach(t => {
                         const isIncome = t.type === 'income';
@@ -752,29 +753,39 @@
                         const date = new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
 
                         const item = document.createElement('div');
-                        item.className = 'bg-white p-4 rounded-xl shadow-sm flex items-center justify-between active:scale-[0.98] transition touch-manipulation';
+                        // Card styling
+                        item.className = 'bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 hover:shadow-md transition-all duration-200 relative group';
                         item.onclick = (e) => {
                             if (e.target.closest('button')) return;
                         };
 
                         item.innerHTML = `
-                            <div class="flex items-center gap-4">
-                                <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center">
+                            <div class="flex justify-between items-start">
+                                <div class="w-12 h-12 rounded-xl ${iconBg} flex items-center justify-center text-xl shadow-sm">
                                     <i class="fa-solid ${iconMap[t.category] || 'fa-circle'}"></i>
                                 </div>
-                                <div>
-                                    <h4 class="font-semibold text-sm text-slate-900">${t.description}</h4>
-                                    <p class="text-xs text-slate-500">${t.category} • ${date}</p>
+                                <div class="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                    <button onclick="editTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-blue-50 hover:text-blue-600 flex items-center justify-center transition-colors" title="Edit">
+                                        <i class="fa-solid fa-pen text-xs"></i>
+                                    </button>
+                                    <button onclick="deleteTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600 flex items-center justify-center transition-colors" title="Delete">
+                                        <i class="fa-solid fa-trash text-xs"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <div class="flex items-center gap-3">
-                                <span class="font-bold ${colorClass}">${sign}${formatCurrency(t.amount).replace('₹', '')}</span>
-                                <button onclick="editTransaction('${t.id}')" class="text-slate-300 hover:text-blue-500 p-2">
-                                    <i class="fa-solid fa-pen text-sm"></i>
-                                </button>
-                                <button onclick="deleteTransaction('${t.id}')" class="text-slate-300 hover:text-red-500 p-2">
-                                    <i class="fa-solid fa-trash text-sm"></i>
-                                </button>
+                            
+                            <div>
+                                <h4 class="font-bold text-slate-800 text-lg leading-tight mb-1 line-clamp-1" title="${t.description}">${t.description}</h4>
+                                <div class="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                                    <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600">${t.category}</span>
+                                    <span>•</span>
+                                    <span>${date}</span>
+                                </div>
+                            </div>
+
+                            <div class="mt-auto pt-3 border-t border-slate-50 flex justify-between items-center">
+                                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Amount</span>
+                                <span class="font-bold text-xl ${colorClass}">${sign}${formatCurrency(t.amount).replace('₹', '')}</span>
                             </div>
                         `;
                         groupContent.appendChild(item);
