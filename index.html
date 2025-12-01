@@ -402,7 +402,7 @@
                 currentUser = user;
                 updateAuthUI(user);
                 if (user) {
-                    loadFromCloud();
+                    syncLocalToCloud();
                 } else {
                     // If logged out, revert to local storage
                     loadFromLocal();
@@ -491,6 +491,54 @@
                     transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     renderUI();
                 });
+        }
+
+        async function syncLocalToCloud() {
+            if (!currentUser || !isFirebaseReady) return;
+
+            // Get local storage data
+            const localTransactions = JSON.parse(localStorage.getItem('transactions')) || [];
+
+            if (localTransactions.length === 0) {
+                // No local data, just load from cloud
+                loadFromCloud();
+                return;
+            }
+
+            try {
+                // Get existing cloud data
+                const snapshot = await db.collection('users').doc(currentUser.uid).collection('transactions').get();
+                const cloudTransactionIds = new Set(snapshot.docs.map(doc => doc.id));
+
+                // Upload local transactions that don't exist in cloud (dedupe by ID)
+                const batch = db.batch();
+                let syncCount = 0;
+
+                localTransactions.forEach(tx => {
+                    if (!cloudTransactionIds.has(String(tx.id))) {
+                        const { id, ...data } = tx;
+                        const docRef = db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(id));
+                        batch.set(docRef, data);
+                        syncCount++;
+                    }
+                });
+
+                // Commit the batch upload
+                if (syncCount > 0) {
+                    await batch.commit();
+                    console.log(`Synced ${syncCount} transactions from local storage to cloud`);
+                }
+
+                // Clear local storage after successful sync
+                localStorage.removeItem('transactions');
+
+                // Now load from cloud (which will trigger the snapshot listener)
+                loadFromCloud();
+            } catch (error) {
+                console.error('Error syncing local to cloud:', error);
+                // Fallback to just loading from cloud
+                loadFromCloud();
+            }
         }
 
         function saveData(newTx = null, deleteId = null) {
