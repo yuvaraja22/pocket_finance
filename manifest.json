@@ -3,6 +3,7 @@
     "short_name": "Pocket Finance",
     "description": "Your personal finance tracker",
     "start_url": "/pocket_finance",
+    "scope": "/pocket_finance",
     "display": "standalone",
     "background_color": "#f8fafc",
     "theme_color": "#2563eb",
