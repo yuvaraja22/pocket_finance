@@ -12,6 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="Pocket Finance">
     <link rel="apple-touch-icon" href="icon.png">
     <link rel="icon" type="image/png" href="icon.png">
+    <link rel="manifest" href="manifest.json">
 
     <script src="https://cdn.tailwindcss.com"></script>
 
@@ -120,6 +121,32 @@
             </div>
         </div>
     </header>
+
+    <!-- Install App Banner -->
+    <div id="install-banner"
+        class="hidden bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 shadow-lg z-20">
+        <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 flex-1">
+                <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
+                    <i class="fa-solid fa-download text-blue-600 text-lg"></i>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="font-bold text-sm">Install Pocket Finance</p>
+                    <p class="text-xs text-blue-100">Add to home screen for quick access</p>
+                </div>
+            </div>
+            <div class="flex gap-2 flex-shrink-0">
+                <button onclick="installApp()"
+                    class="bg-white text-blue-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition">
+                    Install
+                </button>
+                <button onclick="dismissInstallBanner()" class="text-white hover:text-blue-100 p-2">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
 
     <main class="flex-1 overflow-y-auto no-scrollbar p-4 pb-24" id="main-container">
 
@@ -435,6 +462,65 @@
             'Investment': 'fa-chart-line',
             'Other': 'fa-circle-question'
         };
+
+        // --- PWA Install Logic ---
+        let deferredPrompt;
+
+        // Capture the install prompt event
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing
+            e.preventDefault();
+            // Save the event for later use
+            deferredPrompt = e;
+
+            // Check if user has dismissed the banner before
+            const dismissed = localStorage.getItem('install-banner-dismissed');
+            if (!dismissed) {
+                // Show the install banner
+                document.getElementById('install-banner').classList.remove('hidden');
+            }
+        });
+
+        async function installApp() {
+            if (!deferredPrompt) {
+                // For iOS: Show instructions since PWA install is not available via API
+                if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
+                    alert('To install:\n1. Tap the Share button\n2. Scroll and tap "Add to Home Screen"\n3. Tap "Add"');
+                }
+                return;
+            }
+
+            // Show the install prompt
+            deferredPrompt.prompt();
+
+            // Wait for the user's response
+            const { outcome } = await deferredPrompt.userChoice;
+
+            if (outcome === 'accepted') {
+                console.log('User accepted the install prompt');
+            }
+
+            // Clear the deferredPrompt
+            deferredPrompt = null;
+
+            // Hide the banner
+            document.getElementById('install-banner').classList.add('hidden');
+        }
+
+        function dismissInstallBanner() {
+            document.getElementById('install-banner').classList.add('hidden');
+            // Remember that user dismissed the banner (for 30 days)
+            localStorage.setItem('install-banner-dismissed', Date.now());
+            setTimeout(() => {
+                localStorage.removeItem('install-banner-dismissed');
+            }, 30 * 24 * 60 * 60 * 1000); // 30 days
+        }
+
+        // Check if app is already installed
+        window.addEventListener('appinstalled', () => {
+            console.log('PWA was installed');
+            document.getElementById('install-banner').classList.add('hidden');
+        });
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
