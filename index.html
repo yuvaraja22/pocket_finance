@@ -882,7 +882,7 @@
 
                     group.items.forEach(t => {
                         const isIncome = t.type === 'income';
-                        const colorClass = isIncome ? 'text-green-600' : 'text-red-600';
+                        const colorClass = isIncome ? 'text-green-600' : 'text-red-400';
                         const iconBg = isIncome ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500';
                         const sign = isIncome ? '+' : '-';
                         const date = new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
