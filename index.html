@@ -742,8 +742,8 @@
 
                     const groupContent = document.createElement('div');
                     groupContent.id = `group-${groupId}`;
-                    // Grid layout: 1 col mobile, 2 col tablet (sm), 3 col md, 4 col large screens
-                    groupContent.className = "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4 transition-all overflow-hidden";
+                    // Grid layout: 2 col mobile, 2 col tablet (sm), 3 col md, 4 col large screens
+                    groupContent.className = "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 transition-all overflow-hidden";
 
                     group.items.forEach(t => {
                         const isIncome = t.type === 'income';
