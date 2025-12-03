@@ -100,6 +100,11 @@
                 <i class="fa-brands fa-google text-red-500"></i> Sync
             </button>
 
+            <button onclick="openCategorySettings()"
+                class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition">
+                <i class="fa-solid fa-gear"></i>
+            </button>
+
             <button onclick="toggleAnalytics()"
                 class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition">
                 <i class="fa-solid fa-chart-pie"></i>
@@ -274,6 +279,77 @@
         </div>
     </div>
 
+    <!-- Category Settings Modal -->
+    <div id="category-settings-modal"
+        class="modal fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 sm:p-0">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="toggleModal('category-settings-modal')">
+        </div>
+
+        <div
+            class="bg-white w-full max-w-md rounded-2xl p-6 relative shadow-2xl z-10 mb-4 sm:mb-0 max-h-[85vh] overflow-y-auto no-scrollbar">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Manage Categories</h3>
+                <button onclick="toggleModal('category-settings-modal')" class="text-slate-400 hover:text-slate-600">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-2 mb-6 border-b border-slate-200">
+                <button id="tab-expense" onclick="switchCategoryTab('expense')"
+                    class="flex-1 px-4 py-2 text-sm font-bold text-primary border-b-2 border-primary">
+                    Expense
+                </button>
+                <button id="tab-income" onclick="switchCategoryTab('income')"
+                    class="flex-1 px-4 py-2 text-sm font-bold text-slate-400 border-b-2 border-transparent">
+                    Income
+                </button>
+            </div>
+
+            <!-- Expense Categories -->
+            <div id="expense-categories-section" class="category-section">
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Expense Categories</label>
+                    <div id="expense-categories-list" class="space-y-2 mb-3 max-h-64 overflow-y-auto no-scrollbar">
+                        <!-- Categories will be inserted here -->
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-expense-category" placeholder="New category name"
+                            class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white text-sm">
+                        <button onclick="addCategory('expense')"
+                            class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 active:scale-95 transition">
+                            <i class="fa-solid fa-plus"></i> Add
+                        </button>
+                    </div>
+                </div>
+                <button onclick="resetCategories('expense')"
+                    class="w-full bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-200 active:scale-95 transition">
+                    <i class="fa-solid fa-rotate-right"></i> Reset to Defaults
+                </button>
+            </div>
+
+            <!-- Income Categories -->
+            <div id="income-categories-section" class="category-section hidden">
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Income Categories</label>
+                    <div id="income-categories-list" class="space-y-2 mb-3 max-h-64 overflow-y-auto no-scrollbar">
+                        <!-- Categories will be inserted here -->
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="new-income-category" placeholder="New category name"
+                            class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white text-sm">
+                        <button onclick="addCategory('income')"
+                            class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 active:scale-95 transition">
+                            <i class="fa-solid fa-plus"></i> Add
+                        </button>
+                    </div>
+                </div>
+                <button onclick="resetCategories('income')"
+                    class="w-full bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-200 active:scale-95 transition">
+                    <i class="fa-solid fa-rotate-right"></i> Reset to Defaults
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Analytics Modal -->
@@ -444,9 +520,16 @@
         let transactions = [];
         let editingTransactionId = null;
 
-        const categories = {
-            expense: ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 'Entertainment', 'Other'],
-            income: ['Salary', 'Freelance', 'Gift', 'Investment', 'Other']
+        // Default categories (used for reset)
+        const defaultCategories = {
+            expense: ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 'Entertainment', 'Investment', 'Other'],
+            income: ['Salary', 'Gift', 'Other']
+        };
+
+        // User's categories (loaded from storage or defaults)
+        let categories = {
+            expense: [...defaultCategories.expense],
+            income: [...defaultCategories.income]
         };
 
         const iconMap = {
@@ -457,7 +540,6 @@
             'Health': 'fa-heart-pulse',
             'Entertainment': 'fa-film',
             'Salary': 'fa-money-bill-wave',
-            'Freelance': 'fa-laptop-code',
             'Gift': 'fa-gift',
             'Investment': 'fa-chart-line',
             'Other': 'fa-circle-question'
@@ -525,6 +607,9 @@
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
+
+            // Load categories from storage
+            loadCategories();
             updateCategories();
 
             // Initial load from local storage (will be overwritten if Firebase loads user)
@@ -646,6 +731,155 @@
             else {
                 localStorage.setItem('transactions', JSON.stringify(transactions));
                 renderUI(); // Only need to manually re-render for local storage
+            }
+        }
+
+        // --- Category Management Functions ---
+
+        function loadCategories() {
+            // Try to load from localStorage first
+            const savedCategories = localStorage.getItem('categories');
+            if (savedCategories) {
+                try {
+                    categories = JSON.parse(savedCategories);
+                } catch (e) {
+                    console.error('Failed to parse categories:', e);
+                    categories = { ...defaultCategories };
+                }
+            }
+
+            // If logged in, load from Firebase (will override local)
+            if (currentUser && isFirebaseReady) {
+                db.collection('users').doc(currentUser.uid).collection('settings').doc('categories').get()
+                    .then(doc => {
+                        if (doc.exists && doc.data().categories) {
+                            categories = doc.data().categories;
+                            updateCategories();
+                        }
+                    })
+                    .catch(err => console.error('Error loading categories from Firebase:', err));
+            }
+        }
+
+        function saveCategories() {
+            // Save to localStorage
+            localStorage.setItem('categories', JSON.stringify(categories));
+
+            // If logged in, save to Firebase
+            if (currentUser && isFirebaseReady) {
+                db.collection('users').doc(currentUser.uid).collection('settings').doc('categories').set({
+                    categories: categories,
+                    updatedAt: new Date().toISOString()
+                }).catch(err => console.error('Error saving categories to Firebase:', err));
+            }
+
+            // Update the dropdown in transaction form
+            updateCategories();
+        }
+
+        function openCategorySettings() {
+            // Render current categories
+            renderCategoryList('expense');
+            renderCategoryList('income');
+
+            // Switch to expense tab by default
+            switchCategoryTab('expense');
+
+            toggleModal('category-settings-modal');
+        }
+
+        function switchCategoryTab(type) {
+            // Update tab buttons
+            const expenseTab = document.getElementById('tab-expense');
+            const incomeTab = document.getElementById('tab-income');
+            const expenseSection = document.getElementById('expense-categories-section');
+            const incomeSection = document.getElementById('income-categories-section');
+
+            if (type === 'expense') {
+                expenseTab.classList.remove('text-slate-400', 'border-transparent');
+                expenseTab.classList.add('text-primary', 'border-primary');
+                incomeTab.classList.remove('text-primary', 'border-primary');
+                incomeTab.classList.add('text-slate-400', 'border-transparent');
+                expenseSection.classList.remove('hidden');
+                incomeSection.classList.add('hidden');
+            } else {
+                incomeTab.classList.remove('text-slate-400', 'border-transparent');
+                incomeTab.classList.add('text-primary', 'border-primary');
+                expenseTab.classList.remove('text-primary', 'border-primary');
+                expenseTab.classList.add('text-slate-400', 'border-transparent');
+                incomeSection.classList.remove('hidden');
+                expenseSection.classList.add('hidden');
+            }
+        }
+
+        function renderCategoryList(type) {
+            const listId = type === 'expense' ? 'expense-categories-list' : 'income-categories-list';
+            const list = document.getElementById(listId);
+            list.innerHTML = '';
+
+            categories[type].forEach(cat => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg group hover:bg-slate-100 transition';
+                item.innerHTML = `
+                    <span class="text-sm font-medium text-slate-700">${cat}</span>
+                    <button onclick="removeCategory('${type}', '${cat}')" 
+                        class="text-slate-400 hover:text-red-600 transition opacity-0 group-hover:opacity-100">
+                        <i class="fa-solid fa-trash text-xs"></i>
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function addCategory(type) {
+            const inputId = type === 'expense' ? 'new-expense-category' : 'new-income-category';
+            const input = document.getElementById(inputId);
+            const categoryName = input.value.trim();
+
+            if (!categoryName) {
+                alert('Please enter a category name');
+                return;
+            }
+
+            // Check if category already exists
+            if (categories[type].includes(categoryName)) {
+                alert('This category already exists');
+                return;
+            }
+
+            // Add category
+            categories[type].push(categoryName);
+            saveCategories();
+            renderCategoryList(type);
+
+            // Clear input
+            input.value = '';
+        }
+
+        function removeCategory(type, categoryName) {
+            // Prevent removing the last category or "Other"
+            if (categories[type].length <= 1) {
+                alert('You must have at least one category');
+                return;
+            }
+
+            if (categoryName === 'Other') {
+                alert('Cannot remove the "Other" category');
+                return;
+            }
+
+            if (confirm(`Remove "${categoryName}" category?`)) {
+                categories[type] = categories[type].filter(cat => cat !== categoryName);
+                saveCategories();
+                renderCategoryList(type);
+            }
+        }
+
+        function resetCategories(type) {
+            if (confirm(`Reset ${type} categories to defaults?`)) {
+                categories[type] = [...defaultCategories[type]];
+                saveCategories();
+                renderCategoryList(type);
             }
         }
 
@@ -877,8 +1111,8 @@
 
                     const groupContent = document.createElement('div');
                     groupContent.id = `group-${groupId}`;
-                    // Grid layout: 2 col mobile, 2 col tablet (sm), 3 col md, 4 col large screens
-                    groupContent.className = "grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 transition-all overflow-hidden";
+                    // MODIFIED: Flex col for mobile, Grid for desktop
+                    groupContent.className = "flex flex-col md:grid md:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 transition-all overflow-hidden";
 
                     group.items.forEach(t => {
                         const isIncome = t.type === 'income';
@@ -888,8 +1122,8 @@
                         const date = new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
 
                         const item = document.createElement('div');
-                        // Card styling
-                        item.className = 'transaction-card bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col gap-4 hover:shadow-md transition-all duration-200 relative group cursor-pointer';
+                        // MODIFIED: Row for mobile, Col for desktop
+                        item.className = 'transaction-card bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-row md:flex-col gap-3 md:gap-4 hover:shadow-md transition-all duration-200 relative group cursor-pointer items-center md:items-start';
                         item.onclick = (e) => {
                             if (e.target.closest('button')) return;
                             // Toggle buttons visibility
@@ -915,23 +1149,16 @@
                             }
                         };
 
+                        // MODIFIED: Inner HTML structure for responsive layout
                         item.innerHTML = `
-                            <div class="flex justify-between items-start">
-                                <div class="w-12 h-12 rounded-xl ${iconBg} flex items-center justify-center text-xl shadow-sm">
+                            <div class="flex justify-between items-center md:items-start md:w-full">
+                                <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl ${iconBg} flex items-center justify-center text-lg md:text-xl shadow-sm shrink-0">
                                     <i class="fa-solid ${iconMap[t.category] || 'fa-circle'}"></i>
-                                </div>
-                                <div class="action-buttons hidden flex gap-1 transition-opacity">
-                                    <button onclick="editTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-blue-50 hover:text-blue-600 flex items-center justify-center transition-colors" title="Edit">
-                                        <i class="fa-solid fa-pen text-xs"></i>
-                                    </button>
-                                    <button onclick="deleteTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600 flex items-center justify-center transition-colors" title="Delete">
-                                        <i class="fa-solid fa-trash text-xs"></i>
-                                    </button>
                                 </div>
                             </div>
                             
-                            <div>
-                                <h4 class="font-bold text-slate-800 text-lg leading-tight mb-1 line-clamp-1" title="${t.description}">${t.description}</h4>
+                            <div class="flex-1 ml-3 md:ml-0 md:w-full">
+                                <h4 class="font-bold text-slate-800 text-base md:text-lg leading-tight mb-0.5 md:mb-1 line-clamp-1" title="${t.description}">${t.description}</h4>
                                 <div class="flex items-center gap-2 text-xs text-slate-500 font-medium">
                                     <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600">${t.category}</span>
                                     <span>•</span>
@@ -939,8 +1166,18 @@
                                 </div>
                             </div>
 
-                            <div class="mt-auto pt-3 border-t border-slate-50 flex justify-end items-center">
-                                <span class="font-bold text-xl ${colorClass}">${sign}₹${formatCurrency(t.amount).replace('₹', '')}</span>
+                            <div class="md:mt-auto md:pt-3 md:border-t md:border-slate-50 flex justify-end items-center">
+                                <span class="font-bold text-base md:text-xl ${colorClass}">${sign}₹${formatCurrency(t.amount).replace('₹', '')}</span>
+                            </div>
+
+                            <!-- MODIFIED: Action Buttons moved to end. Flex for mobile, Absolute for desktop -->
+                            <div class="action-buttons hidden flex gap-1 transition-opacity ml-2 md:ml-0 md:absolute md:top-5 md:right-5">
+                                <button onclick="editTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-blue-50 hover:text-blue-600 flex items-center justify-center transition-colors" title="Edit">
+                                    <i class="fa-solid fa-pen text-xs"></i>
+                                </button>
+                                <button onclick="deleteTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600 flex items-center justify-center transition-colors" title="Delete">
+                                    <i class="fa-solid fa-trash text-xs"></i>
+                                </button>
                             </div>
                         `;
                         groupContent.appendChild(item);
@@ -949,7 +1186,6 @@
                 });
             }
         }
-
         function toggleGroup(id) {
             const content = document.getElementById(`group-${id}`);
             const icon = document.getElementById(`icon-${id}`);
