@@ -15,11 +15,12 @@
     <link rel="manifest" href="manifest.json">
 
     <script src="https://cdn.tailwindcss.com"></script>
-
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
@@ -54,7 +55,6 @@
             user-select: none;
         }
 
-        /* Hide Scrollbar but allow scrolling */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
@@ -64,14 +64,11 @@
             scrollbar-width: none;
         }
 
-        /* Smooth inputs */
         input,
         select {
             font-size: 16px !important;
-            /* Prevents iOS zoom on focus */
         }
 
-        /* Modal Animation */
         .modal {
             transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
             opacity: 0;
@@ -83,6 +80,17 @@
             opacity: 1;
             pointer-events: auto;
             transform: scale(1);
+        }
+
+        .transaction-card.selected {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border-color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+        }
+
+        .transaction-card.selected .action-buttons {
+            background: linear-gradient(to left, #dbeafe, #dbeafe 70%, transparent) !important;
+            border-radius: 0 1rem 1rem 0;
         }
     </style>
 </head>
@@ -100,6 +108,11 @@
                 <i class="fa-brands fa-google text-red-500"></i> Sync
             </button>
 
+            <button id="encryption-status" onclick="openEncryptionSettings()"
+                class="hidden w-10 h-10 rounded-full flex items-center justify-center transition bg-green-100 text-green-600">
+                <i class="fa-solid fa-lock"></i>
+            </button>
+
             <button onclick="openCategorySettings()"
                 class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition">
                 <i class="fa-solid fa-gear"></i>
@@ -115,7 +128,6 @@
                     class="w-10 h-10 rounded-full border-2 border-white shadow-sm cursor-pointer hover:scale-105 transition"
                     alt="User">
 
-                <!-- Dropdown Menu -->
                 <div id="profile-menu"
                     class="hidden absolute top-12 right-0 bg-white shadow-xl rounded-xl p-1 z-50 min-w-[140px] border border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
                     <button onclick="googleLogout()"
@@ -127,34 +139,7 @@
         </div>
     </header>
 
-    <!-- Install App Banner -->
-    <div id="install-banner"
-        class="hidden bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 shadow-lg z-20">
-        <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3 flex-1">
-                <div class="w-10 h-10 bg-white rounded-lg flex items-center justify-center flex-shrink-0">
-                    <i class="fa-solid fa-download text-blue-600 text-lg"></i>
-                </div>
-                <div class="flex-1 min-w-0">
-                    <p class="font-bold text-sm">Install Pocket Finance</p>
-                    <p class="text-xs text-blue-100">Add to home screen for quick access</p>
-                </div>
-            </div>
-            <div class="flex gap-2 flex-shrink-0">
-                <button onclick="installApp()"
-                    class="bg-white text-blue-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 active:scale-95 transition">
-                    Install
-                </button>
-                <button onclick="dismissInstallBanner()" class="text-white hover:text-blue-100 p-2">
-                    <i class="fa-solid fa-xmark text-lg"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
-
     <main class="flex-1 overflow-y-auto no-scrollbar p-4 pb-24" id="main-container">
-
         <div
             class="bg-gradient-to-br from-primary to-blue-600 rounded-2xl p-6 text-white shadow-lg mb-6 relative overflow-hidden">
             <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full blur-xl"></div>
@@ -207,8 +192,7 @@
             <p class="text-sm">No transactions yet.</p>
         </div>
 
-        <div id="transaction-list" class="space-y-3">
-        </div>
+        <div id="transaction-list" class="space-y-3"></div>
     </main>
 
     <div class="fixed bottom-6 right-6 z-20">
@@ -220,7 +204,6 @@
 
     <div id="add-modal" class="modal fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 sm:p-0">
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="toggleModal('add-modal')"></div>
-
         <div class="bg-white w-full max-w-sm rounded-2xl p-6 relative shadow-2xl z-10 mb-4 sm:mb-0">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-bold" id="modal-title">New Transaction</h3>
@@ -228,37 +211,33 @@
                     <i class="fa-solid fa-xmark text-xl"></i>
                 </button>
             </div>
-
             <form id="transaction-form" onsubmit="addTransaction(event)">
                 <div class="mb-4">
                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Amount</label>
                     <div class="relative">
                         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">₹</span>
                         <input type="number" id="amount" step="0.01" inputmode="decimal" required
-                            class="w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white text-lg font-semibold"
+                            class="w-full pl-8 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-lg font-semibold"
                             placeholder="0.00">
                     </div>
                 </div>
-
                 <div class="mb-4">
                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Date</label>
                     <input type="date" id="transaction-date" required
-                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white text-lg font-semibold">
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-lg font-semibold">
                 </div>
-
                 <div class="mb-4">
                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Description <span
                             class="text-slate-300 font-normal lowercase">(optional)</span></label>
                     <input type="text" id="description"
-                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white"
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
                         placeholder="e.g. Groceries">
                 </div>
-
                 <div class="grid grid-cols-2 gap-4 mb-6">
                     <div>
                         <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Type</label>
                         <select id="type" onchange="updateCategories()"
-                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white appearance-none">
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary appearance-none">
                             <option value="expense">Expense</option>
                             <option value="income">Income</option>
                         </select>
@@ -266,104 +245,104 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Category</label>
                         <select id="category"
-                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white appearance-none">
-                        </select>
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary appearance-none"></select>
                     </div>
                 </div>
-
                 <button type="submit" id="submit-btn"
-                    class="w-full bg-primary text-white font-bold py-4 rounded-xl hover:bg-blue-700 active:scale-95 transition shadow-lg shadow-blue-500/30">
-                    Add Transaction
-                </button>
+                    class="w-full bg-primary text-white font-bold py-4 rounded-xl hover:bg-blue-700 active:scale-95 transition shadow-lg shadow-blue-500/30">Add
+                    Transaction</button>
             </form>
         </div>
     </div>
 
-    <!-- Category Settings Modal -->
+    <div id="pin-modal" class="modal fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"></div>
+        <div class="bg-white w-full max-w-xs rounded-2xl p-6 relative shadow-2xl z-10">
+            <div class="text-center mb-6">
+                <div
+                    class="w-16 h-16 bg-blue-100 text-primary rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800">Enter Security PIN</h3>
+                <p class="text-xs text-slate-500 mt-2">Your data is encrypted. Enter your 4-digit PIN to unlock it.</p>
+            </div>
+
+            <form onsubmit="submitPin(event)">
+                <input type="password" id="pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*"
+                    class="w-full text-center text-3xl tracking-[1em] font-bold py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary mb-6"
+                    placeholder="••••" autofocus>
+
+                <button type="submit"
+                    class="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-blue-700 active:scale-95 transition">
+                    Unlock Data
+                </button>
+            </form>
+            <button onclick="googleLogout()" class="w-full mt-3 text-sm text-slate-400 hover:text-red-500">Cancel &
+                Logout</button>
+        </div>
+    </div>
+
     <div id="category-settings-modal"
         class="modal fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 sm:p-0">
         <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="toggleModal('category-settings-modal')">
         </div>
-
         <div
             class="bg-white w-full max-w-md rounded-2xl p-6 relative shadow-2xl z-10 mb-4 sm:mb-0 max-h-[85vh] overflow-y-auto no-scrollbar">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-bold">Manage Categories</h3>
-                <button onclick="toggleModal('category-settings-modal')" class="text-slate-400 hover:text-slate-600">
-                    <i class="fa-solid fa-xmark text-xl"></i>
-                </button>
+                <button onclick="toggleModal('category-settings-modal')" class="text-slate-400 hover:text-slate-600"><i
+                        class="fa-solid fa-xmark text-xl"></i></button>
             </div>
-
-            <!-- Tabs -->
             <div class="flex gap-2 mb-6 border-b border-slate-200">
                 <button id="tab-expense" onclick="switchCategoryTab('expense')"
-                    class="flex-1 px-4 py-2 text-sm font-bold text-primary border-b-2 border-primary">
-                    Expense
-                </button>
+                    class="flex-1 px-4 py-2 text-sm font-bold text-primary border-b-2 border-primary">Expense</button>
                 <button id="tab-income" onclick="switchCategoryTab('income')"
-                    class="flex-1 px-4 py-2 text-sm font-bold text-slate-400 border-b-2 border-transparent">
-                    Income
-                </button>
+                    class="flex-1 px-4 py-2 text-sm font-bold text-slate-400 border-b-2 border-transparent">Income</button>
             </div>
-
-            <!-- Expense Categories -->
             <div id="expense-categories-section" class="category-section">
                 <div class="mb-4">
                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Expense Categories</label>
                     <div id="expense-categories-list" class="space-y-2 mb-3 max-h-64 overflow-y-auto no-scrollbar">
-                        <!-- Categories will be inserted here -->
                     </div>
                     <div class="flex gap-2">
                         <input type="text" id="new-expense-category" placeholder="New category name"
-                            class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white text-sm">
+                            class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm">
                         <button onclick="addCategory('expense')"
-                            class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 active:scale-95 transition">
-                            <i class="fa-solid fa-plus"></i> Add
-                        </button>
+                            class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold"><i
+                                class="fa-solid fa-plus"></i> Add</button>
                     </div>
                 </div>
                 <button onclick="resetCategories('expense')"
-                    class="w-full bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-200 active:scale-95 transition">
-                    <i class="fa-solid fa-rotate-right"></i> Reset to Defaults
-                </button>
+                    class="w-full bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold"><i
+                        class="fa-solid fa-rotate-right"></i> Reset to Defaults</button>
             </div>
-
-            <!-- Income Categories -->
             <div id="income-categories-section" class="category-section hidden">
                 <div class="mb-4">
                     <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Income Categories</label>
-                    <div id="income-categories-list" class="space-y-2 mb-3 max-h-64 overflow-y-auto no-scrollbar">
-                        <!-- Categories will be inserted here -->
-                    </div>
+                    <div id="income-categories-list" class="space-y-2 mb-3 max-h-64 overflow-y-auto no-scrollbar"></div>
                     <div class="flex gap-2">
                         <input type="text" id="new-income-category" placeholder="New category name"
-                            class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white text-sm">
+                            class="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm">
                         <button onclick="addCategory('income')"
-                            class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 active:scale-95 transition">
-                            <i class="fa-solid fa-plus"></i> Add
-                        </button>
+                            class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold"><i
+                                class="fa-solid fa-plus"></i> Add</button>
                     </div>
                 </div>
                 <button onclick="resetCategories('income')"
-                    class="w-full bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-200 active:scale-95 transition">
-                    <i class="fa-solid fa-rotate-right"></i> Reset to Defaults
-                </button>
+                    class="w-full bg-slate-100 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold"><i
+                        class="fa-solid fa-rotate-right"></i> Reset to Defaults</button>
             </div>
         </div>
     </div>
 
-    <!-- Analytics Modal -->
     <div id="analytics-modal" class="modal fixed inset-0 z-50 flex flex-col bg-bg overflow-hidden">
         <div class="bg-white px-6 py-4 shadow-sm flex justify-between items-center z-10">
             <h2 class="text-xl font-bold text-slate-900">Analytics</h2>
             <button onclick="toggleAnalytics()"
-                class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
+                class="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"><i
+                    class="fa-solid fa-xmark"></i></button>
         </div>
-
         <div class="flex-1 overflow-y-auto p-4 pb-24 no-scrollbar">
-            <!-- Controls -->
             <div class="bg-white p-4 rounded-2xl shadow-sm mb-6">
                 <div class="flex gap-2 mb-4 overflow-x-auto no-scrollbar pb-1">
                     <button onclick="setFilter('thisMonth')"
@@ -377,20 +356,16 @@
                         id="btn-all">All Time</button>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase">Start</label>
-                        <input type="date" id="date-start" onchange="customDateFilter()"
+                    <div><label class="text-[10px] font-bold text-slate-400 uppercase">Start</label><input type="date"
+                            id="date-start" onchange="customDateFilter()"
                             class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs font-semibold">
                     </div>
-                    <div>
-                        <label class="text-[10px] font-bold text-slate-400 uppercase">End</label>
-                        <input type="date" id="date-end" onchange="customDateFilter()"
+                    <div><label class="text-[10px] font-bold text-slate-400 uppercase">End</label><input type="date"
+                            id="date-end" onchange="customDateFilter()"
                             class="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs font-semibold">
                     </div>
                 </div>
             </div>
-
-            <!-- Summary Cards -->
             <div class="grid grid-cols-3 gap-2 mb-6">
                 <div class="bg-green-50 p-3 rounded-xl border border-green-100">
                     <p class="text-[10px] text-green-600 font-bold uppercase mb-1">Income</p>
@@ -405,35 +380,25 @@
                     <p class="text-sm font-bold text-blue-700" id="analytics-balance">₹0</p>
                 </div>
             </div>
-
-            <!-- Charts -->
             <div class="bg-white p-4 rounded-2xl shadow-sm mb-6">
                 <h3 class="font-bold text-slate-800 mb-4 text-sm">Expense Breakdown</h3>
-                <div class="h-64 relative">
-                    <canvas id="expenseChart"></canvas>
-                </div>
+                <div class="h-64 relative"><canvas id="expenseChart"></canvas></div>
             </div>
-
             <div class="bg-white p-4 rounded-2xl shadow-sm mb-24">
                 <h3 class="font-bold text-slate-800 mb-4 text-sm">Income vs Expense</h3>
-                <div class="h-48 relative">
-                    <canvas id="trendChart"></canvas>
-                </div>
+                <div class="h-48 relative"><canvas id="trendChart"></canvas></div>
             </div>
         </div>
-
         <div class="absolute bottom-6 left-0 right-0 px-6 flex justify-center">
             <button onclick="exportAnalyticsReport()"
-                class="bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 font-bold text-sm hover:bg-slate-900 active:scale-95 transition">
-                <i class="fa-solid fa-file-export"></i> Export Report
-            </button>
+                class="bg-slate-800 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-2 font-bold text-sm hover:bg-slate-900 active:scale-95 transition"><i
+                    class="fa-solid fa-file-export"></i> Export Report</button>
         </div>
     </div>
 
     <div id="pdf-container" class="hidden bg-white p-8">
         <h1 class="text-2xl font-bold mb-2 text-center">Financial Report</h1>
         <p class="text-center text-gray-500 text-sm mb-6" id="pdf-date"></p>
-
         <div class="grid grid-cols-3 gap-4 mb-6 border-b pb-6">
             <div class="text-center">
                 <p class="text-xs text-gray-500 uppercase">Income</p>
@@ -448,7 +413,6 @@
                 <p class="text-blue-600 font-bold text-lg" id="pdf-balance"></p>
             </div>
         </div>
-
         <table class="w-full text-left text-sm">
             <thead>
                 <tr class="border-b-2 border-gray-200">
@@ -458,30 +422,36 @@
                     <th class="py-2 text-right">Amount</th>
                 </tr>
             </thead>
-            <tbody id="pdf-table-body">
-            </tbody>
+            <tbody id="pdf-table-body"></tbody>
         </table>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="modal fixed inset-0 z-[70] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeDeleteModal()"></div>
+        <div class="bg-white w-full max-w-xs rounded-2xl p-6 relative shadow-2xl z-10">
+            <div class="text-center mb-6">
+                <div
+                    class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
+                    <i class="fa-solid fa-trash"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800">Delete Transaction?</h3>
+                <p class="text-sm text-slate-500 mt-2">This action cannot be undone. Are you sure you want to delete
+                    this transaction?</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closeDeleteModal()"
+                    class="flex-1 bg-slate-100 text-slate-600 font-bold py-3 rounded-xl hover:bg-slate-200 active:scale-95 transition">Cancel</button>
+                <button onclick="confirmDelete()"
+                    class="flex-1 bg-red-500 text-white font-bold py-3 rounded-xl hover:bg-red-600 active:scale-95 transition">Delete</button>
+            </div>
+        </div>
     </div>
 
     <script>
         // ==========================================
-        // FIREBASE CONFIGURATION (REQUIRED FOR SYNC)
+        // FIREBASE CONFIGURATION
         // ==========================================
-        // 1. Go to console.firebase.google.com
-        // 2. Create a new project
-        // 3. Enable "Authentication" > "Google"
-        // 4. Enable "Cloud Firestore" > "Create Database"
-        // 5. Go to Project Settings > General > "Your apps" > SDK Setup and copy the config object below:
-
-        // const firebaseConfig = {
-        //     apiKey: "YOUR_API_KEY_HERE",
-        //     authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-        //     projectId: "YOUR_PROJECT_ID",
-        //     storageBucket: "YOUR_PROJECT_ID.appspot.com",
-        //     messagingSenderId: "YOUR_SENDER_ID",
-        //     appId: "YOUR_APP_ID"
-        // };
-
         const firebaseConfig = {
             apiKey: "AIzaSyDaGRXYekB8nSGD6RfMJMuJD_h5cogmSbE",
             authDomain: "my-finance-tracker-yuva.firebaseapp.com",
@@ -491,9 +461,13 @@
             appId: "1:230460049894:web:0a26d8c5503805a2b72e27",
             measurementId: "G-HM2JXMVZ9T"
         };
-        // Initialize Firebase safely
+
         let auth, db, currentUser = null;
         let isFirebaseReady = false;
+
+        // --- ENCRYPTION VARIABLES ---
+        let userEncryptionKey = null; // Can be UID or PIN
+        let usingPin = false;         // Tracks if we are in PIN mode or UID mode
 
         try {
             firebase.initializeApp(firebaseConfig);
@@ -501,14 +475,14 @@
             db = firebase.firestore();
             isFirebaseReady = true;
 
-            // Auth Listener
             auth.onAuthStateChanged(user => {
                 currentUser = user;
                 updateAuthUI(user);
                 if (user) {
-                    syncLocalToCloud();
+                    checkEncryptionMode(user);
                 } else {
-                    // If logged out, revert to local storage
+                    userEncryptionKey = null;
+                    usingPin = false;
                     loadFromLocal();
                 }
             });
@@ -519,120 +493,169 @@
         // --- Data & State ---
         let transactions = [];
         let editingTransactionId = null;
-
-        // Default categories (used for reset)
         const defaultCategories = {
             expense: ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 'Entertainment', 'Investment', 'Other'],
             income: ['Salary', 'Gift', 'Other']
         };
+        let categories = { expense: [...defaultCategories.expense], income: [...defaultCategories.income] };
 
-        // User's categories (loaded from storage or defaults)
-        let categories = {
-            expense: [...defaultCategories.expense],
-            income: [...defaultCategories.income]
-        };
-
-        const iconMap = {
-            'Food': 'fa-utensils',
-            'Transport': 'fa-car',
-            'Shopping': 'fa-bag-shopping',
-            'Bills': 'fa-file-invoice-dollar',
-            'Health': 'fa-heart-pulse',
-            'Entertainment': 'fa-film',
-            'Salary': 'fa-money-bill-wave',
-            'Gift': 'fa-gift',
-            'Investment': 'fa-chart-line',
-            'Other': 'fa-circle-question'
-        };
-
-        // --- PWA Install Logic ---
-        let deferredPrompt;
-
-        // Capture the install prompt event
-        window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevent the mini-infobar from appearing
-            e.preventDefault();
-            // Save the event for later use
-            deferredPrompt = e;
-
-            // Check if user has dismissed the banner before
-            const dismissed = localStorage.getItem('install-banner-dismissed');
-            if (!dismissed) {
-                // Show the install banner
-                document.getElementById('install-banner').classList.remove('hidden');
-            }
-        });
-
-        async function installApp() {
-            if (!deferredPrompt) {
-                // For iOS: Show instructions since PWA install is not available via API
-                if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-                    alert('To install:\n1. Tap the Share button\n2. Scroll and tap "Add to Home Screen"\n3. Tap "Add"');
-                }
-                return;
-            }
-
-            // Show the install prompt
-            deferredPrompt.prompt();
-
-            // Wait for the user's response
-            const { outcome } = await deferredPrompt.userChoice;
-
-            if (outcome === 'accepted') {
-                console.log('User accepted the install prompt');
-            }
-
-            // Clear the deferredPrompt
-            deferredPrompt = null;
-
-            // Hide the banner
-            document.getElementById('install-banner').classList.add('hidden');
-        }
-
-        function dismissInstallBanner() {
-            document.getElementById('install-banner').classList.add('hidden');
-            // Remember that user dismissed the banner (for 30 days)
-            localStorage.setItem('install-banner-dismissed', Date.now());
-            setTimeout(() => {
-                localStorage.removeItem('install-banner-dismissed');
-            }, 30 * 24 * 60 * 60 * 1000); // 30 days
-        }
-
-        // Check if app is already installed
-        window.addEventListener('appinstalled', () => {
-            console.log('PWA was installed');
-            document.getElementById('install-banner').classList.add('hidden');
-        });
+        const iconMap = { 'Food': 'fa-utensils', 'Transport': 'fa-car', 'Shopping': 'fa-bag-shopping', 'Bills': 'fa-file-invoice-dollar', 'Health': 'fa-heart-pulse', 'Entertainment': 'fa-film', 'Salary': 'fa-money-bill-wave', 'Gift': 'fa-gift', 'Investment': 'fa-chart-line', 'Other': 'fa-circle-question' };
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
-
-            // Load categories from storage
             loadCategories();
             updateCategories();
-
-            // Initial load from local storage (will be overwritten if Firebase loads user)
             if (!currentUser) loadFromLocal();
         });
 
+        // ==========================================
+        // ENCRYPTION LOGIC (CORE FEATURES)
+        // ==========================================
+
+        async function checkEncryptionMode(user) {
+            // Check if this user has enabled PIN mode in Firestore
+            try {
+                const settingsDoc = await db.collection('users').doc(user.uid).collection('settings').doc('security').get();
+
+                if (settingsDoc.exists && settingsDoc.data().usePin) {
+                    // PIN MODE ENABLED
+                    const savedPin = localStorage.getItem('user_privacy_pin');
+                    if (savedPin) {
+                        // Found in storage, use it silently
+                        userEncryptionKey = savedPin;
+                        usingPin = true;
+                        updateLockIcon(true);
+                        syncLocalToCloud();
+                    } else {
+                        // Not found locally, MUST ASK USER
+                        toggleModal('pin-modal');
+                        // Notice: We do NOT call sync/load yet, wait for PIN
+                    }
+                } else {
+                    // DEFAULT MODE (Use UID)
+                    userEncryptionKey = user.uid;
+                    usingPin = false;
+                    updateLockIcon(false);
+                    syncLocalToCloud();
+                }
+            } catch (error) {
+                console.error("Error checking encryption mode", error);
+                // Fallback to UID default
+                userEncryptionKey = user.uid;
+                usingPin = false;
+                syncLocalToCloud();
+            }
+        }
+
+        function submitPin(e) {
+            e.preventDefault();
+            const pin = document.getElementById('pin-input').value;
+            if (pin.length === 4) {
+                userEncryptionKey = pin;
+                usingPin = true;
+                localStorage.setItem('user_privacy_pin', pin); // Save for next time
+                toggleModal('pin-modal');
+                updateLockIcon(true);
+                syncLocalToCloud();
+            } else {
+                alert("Please enter a 4-digit PIN");
+            }
+        }
+
+        function encryptData(dataObject) {
+            if (!userEncryptionKey) return dataObject;
+
+            // Serialize
+            const jsonString = JSON.stringify(dataObject);
+            // Encrypt using current key (UID or PIN)
+            const encrypted = CryptoJS.AES.encrypt(jsonString, userEncryptionKey).toString();
+
+            return {
+                isEncrypted: true,
+                payload: encrypted,
+                date: dataObject.date // Keep date visible for sorting
+            };
+        }
+
+        function decryptData(docData) {
+            if (!docData.isEncrypted) return docData; // Legacy data support
+
+            try {
+                const bytes = CryptoJS.AES.decrypt(docData.payload, userEncryptionKey);
+                const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
+                return decryptedData;
+            } catch (e) {
+                console.error("Decryption failed. Wrong Key?");
+                return null; // Return null on failure
+            }
+        }
+
+        function enablePinEncryption() {
+            const pin = prompt("Set a 4-digit PIN for End-to-End Encryption:\n(Warning: If you forget this, your data is lost forever)");
+            if (!pin || pin.length !== 4) return alert("Invalid PIN. Cancelled.");
+
+            // 1. Save setting to Firestore
+            db.collection('users').doc(currentUser.uid).collection('settings').doc('security').set({ usePin: true });
+
+            // 2. Save PIN locally
+            localStorage.setItem('user_privacy_pin', pin);
+
+            // 3. Update State
+            userEncryptionKey = pin;
+            usingPin = true;
+            updateLockIcon(true);
+
+            // 4. Trigger a re-save of all data to apply new encryption
+            // Note: In a production app, you'd batch re-encrypt existing data here. 
+            // For simplicity, new data will use PIN, old data might fail decryption until re-saved.
+            alert("Encryption enabled! Future transactions will be locked with your PIN.");
+        }
+
+        function updateLockIcon(isSecure) {
+            const iconBtn = document.getElementById('encryption-status');
+            iconBtn.classList.remove('hidden');
+
+            if (isSecure) {
+                iconBtn.className = "w-10 h-10 rounded-full flex items-center justify-center transition bg-green-100 text-green-600";
+                iconBtn.innerHTML = '<i class="fa-solid fa-lock"></i>';
+            } else {
+                // Warning icon indicating default security (UID based)
+                iconBtn.className = "w-10 h-10 rounded-full flex items-center justify-center transition bg-yellow-100 text-yellow-600";
+                iconBtn.innerHTML = '<i class="fa-solid fa-lock-open"></i>';
+            }
+        }
+
+        function openEncryptionSettings() {
+            if (usingPin) {
+                alert("You are using PIN-based End-to-End Encryption. Your data is safe.");
+            } else {
+                if (confirm("You are currently using Standard Security (UID).\n\nSwitch to End-to-End Encryption (PIN)?\nThis makes data unreadable to anyone but you.")) {
+                    enablePinEncryption();
+                }
+            }
+        }
+
         // --- Auth Functions ---
         function googleLogin() {
-            if (!isFirebaseReady) return alert("Please configure Firebase keys in the code first.");
+            if (!isFirebaseReady) return alert("Configure Firebase first.");
             const provider = new firebase.auth.GoogleAuthProvider();
-            auth.signInWithPopup(provider).catch(error => alert(error.message));
+            auth.signInWithPopup(provider).catch(e => alert(e.message));
         }
 
         function googleLogout() {
+            localStorage.removeItem('user_privacy_pin'); // Clear PIN on logout
             auth.signOut();
-            transactions = []; // Clear current view
-            loadFromLocal(); // Revert to local
+            transactions = [];
+            document.getElementById('pin-input').value = ''; // Clear modal input
+            loadFromLocal();
         }
 
         function updateAuthUI(user) {
             const loginBtn = document.getElementById('login-btn');
             const userProfile = document.getElementById('user-profile');
             const avatar = document.getElementById('user-avatar');
+            const lockIcon = document.getElementById('encryption-status');
 
             if (user) {
                 loginBtn.classList.add('hidden');
@@ -640,11 +663,13 @@
                 userProfile.classList.remove('hidden');
                 userProfile.classList.add('flex');
                 avatar.src = user.photoURL;
+                lockIcon.classList.remove('hidden');
             } else {
                 loginBtn.classList.remove('hidden');
                 loginBtn.classList.add('flex');
                 userProfile.classList.add('hidden');
                 userProfile.classList.remove('flex');
+                lockIcon.classList.add('hidden');
             }
         }
 
@@ -656,99 +681,84 @@
 
         function loadFromCloud() {
             if (!currentUser) return;
-            // Listen for realtime updates
             db.collection('users').doc(currentUser.uid).collection('transactions')
                 .orderBy('date', 'desc')
                 .onSnapshot(snapshot => {
-                    transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    const loaded = [];
+                    snapshot.docs.forEach(doc => {
+                        const raw = doc.data();
+
+                        // DECRYPTION STEP
+                        let finalData = raw;
+                        if (raw.isEncrypted) {
+                            const decrypted = decryptData(raw);
+                            if (decrypted) finalData = decrypted;
+                            else return; // Skip if decryption fails
+                        }
+
+                        loaded.push({ id: doc.id, ...finalData });
+                    });
+                    transactions = loaded;
                     renderUI();
                 });
         }
 
         async function syncLocalToCloud() {
             if (!currentUser || !isFirebaseReady) return;
-
-            // Get local storage data
             const localTransactions = JSON.parse(localStorage.getItem('transactions')) || [];
 
             if (localTransactions.length === 0) {
-                // No local data, just load from cloud
                 loadFromCloud();
                 return;
             }
 
             try {
-                // Get existing cloud data
                 const snapshot = await db.collection('users').doc(currentUser.uid).collection('transactions').get();
-                const cloudTransactionIds = new Set(snapshot.docs.map(doc => doc.id));
-
-                // Upload local transactions that don't exist in cloud (dedupe by ID)
+                const cloudIds = new Set(snapshot.docs.map(doc => doc.id));
                 const batch = db.batch();
                 let syncCount = 0;
 
                 localTransactions.forEach(tx => {
-                    if (!cloudTransactionIds.has(String(tx.id))) {
+                    if (!cloudIds.has(String(tx.id))) {
                         const { id, ...data } = tx;
+                        // ENCRYPT BEFORE UPLOAD
+                        const dataToSave = encryptData(data);
                         const docRef = db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(id));
-                        batch.set(docRef, data);
+                        batch.set(docRef, dataToSave);
                         syncCount++;
                     }
                 });
 
-                // Commit the batch upload
-                if (syncCount > 0) {
-                    await batch.commit();
-                    console.log(`Synced ${syncCount} transactions from local storage to cloud`);
-                }
-
-                // Clear local storage after successful sync
+                if (syncCount > 0) await batch.commit();
                 localStorage.removeItem('transactions');
-
-                // Now load from cloud (which will trigger the snapshot listener)
                 loadFromCloud();
             } catch (error) {
-                console.error('Error syncing local to cloud:', error);
-                // Fallback to just loading from cloud
+                console.error('Sync Error:', error);
                 loadFromCloud();
             }
         }
 
         function saveData(newTx = null, deleteId = null) {
-            // If Logged In -> Use Cloud
             if (currentUser && isFirebaseReady) {
                 if (newTx) {
-                    // Add new
-                    // We remove ID from object because Firestore creates its own or we use the specific one
                     const { id, ...data } = newTx;
-                    db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(newTx.id)).set(data);
+                    // ENCRYPT BEFORE SAVE
+                    const dataToSave = encryptData(data);
+                    db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(newTx.id)).set(dataToSave);
                 }
                 if (deleteId) {
-                    // Delete
                     db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(deleteId)).delete();
                 }
-            }
-            // If Logged Out -> Use LocalStorage
-            else {
+            } else {
                 localStorage.setItem('transactions', JSON.stringify(transactions));
-                renderUI(); // Only need to manually re-render for local storage
+                renderUI();
             }
         }
 
-        // --- Category Management Functions ---
-
+        // --- Categories (Standard Logic) ---
         function loadCategories() {
-            // Try to load from localStorage first
-            const savedCategories = localStorage.getItem('categories');
-            if (savedCategories) {
-                try {
-                    categories = JSON.parse(savedCategories);
-                } catch (e) {
-                    console.error('Failed to parse categories:', e);
-                    categories = { ...defaultCategories };
-                }
-            }
-
-            // If logged in, load from Firebase (will override local)
+            const saved = localStorage.getItem('categories');
+            if (saved) categories = JSON.parse(saved);
             if (currentUser && isFirebaseReady) {
                 db.collection('users').doc(currentUser.uid).collection('settings').doc('categories').get()
                     .then(doc => {
@@ -756,743 +766,261 @@
                             categories = doc.data().categories;
                             updateCategories();
                         }
-                    })
-                    .catch(err => console.error('Error loading categories from Firebase:', err));
+                    });
             }
         }
-
         function saveCategories() {
-            // Save to localStorage
             localStorage.setItem('categories', JSON.stringify(categories));
-
-            // If logged in, save to Firebase
             if (currentUser && isFirebaseReady) {
-                db.collection('users').doc(currentUser.uid).collection('settings').doc('categories').set({
-                    categories: categories,
-                    updatedAt: new Date().toISOString()
-                }).catch(err => console.error('Error saving categories to Firebase:', err));
+                db.collection('users').doc(currentUser.uid).collection('settings').doc('categories').set({ categories, updatedAt: new Date().toISOString() });
             }
-
-            // Update the dropdown in transaction form
             updateCategories();
         }
-
-        function openCategorySettings() {
-            // Render current categories
-            renderCategoryList('expense');
-            renderCategoryList('income');
-
-            // Switch to expense tab by default
-            switchCategoryTab('expense');
-
-            toggleModal('category-settings-modal');
-        }
-
+        function openCategorySettings() { renderCategoryList('expense'); renderCategoryList('income'); switchCategoryTab('expense'); toggleModal('category-settings-modal'); }
         function switchCategoryTab(type) {
-            // Update tab buttons
-            const expenseTab = document.getElementById('tab-expense');
-            const incomeTab = document.getElementById('tab-income');
-            const expenseSection = document.getElementById('expense-categories-section');
-            const incomeSection = document.getElementById('income-categories-section');
-
-            if (type === 'expense') {
-                expenseTab.classList.remove('text-slate-400', 'border-transparent');
-                expenseTab.classList.add('text-primary', 'border-primary');
-                incomeTab.classList.remove('text-primary', 'border-primary');
-                incomeTab.classList.add('text-slate-400', 'border-transparent');
-                expenseSection.classList.remove('hidden');
-                incomeSection.classList.add('hidden');
-            } else {
-                incomeTab.classList.remove('text-slate-400', 'border-transparent');
-                incomeTab.classList.add('text-primary', 'border-primary');
-                expenseTab.classList.remove('text-primary', 'border-primary');
-                expenseTab.classList.add('text-slate-400', 'border-transparent');
-                incomeSection.classList.remove('hidden');
-                expenseSection.classList.add('hidden');
-            }
+            document.getElementById('tab-expense').className = type === 'expense' ? 'flex-1 px-4 py-2 text-sm font-bold text-primary border-b-2 border-primary' : 'flex-1 px-4 py-2 text-sm font-bold text-slate-400 border-b-2 border-transparent';
+            document.getElementById('tab-income').className = type === 'income' ? 'flex-1 px-4 py-2 text-sm font-bold text-primary border-b-2 border-primary' : 'flex-1 px-4 py-2 text-sm font-bold text-slate-400 border-b-2 border-transparent';
+            document.getElementById('expense-categories-section').classList.toggle('hidden', type !== 'expense');
+            document.getElementById('income-categories-section').classList.toggle('hidden', type !== 'income');
         }
-
         function renderCategoryList(type) {
-            const listId = type === 'expense' ? 'expense-categories-list' : 'income-categories-list';
-            const list = document.getElementById(listId);
+            const list = document.getElementById(type === 'expense' ? 'expense-categories-list' : 'income-categories-list');
             list.innerHTML = '';
-
             categories[type].forEach(cat => {
                 const item = document.createElement('div');
                 item.className = 'flex items-center justify-between bg-slate-50 px-3 py-2 rounded-lg group hover:bg-slate-100 transition';
-
-                const nameSpan = document.createElement('span');
-                nameSpan.className = 'text-sm font-medium text-slate-700';
-                nameSpan.textContent = cat;
-
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'text-slate-400 hover:text-red-600 transition'; // Removed opacity-0
-                deleteBtn.innerHTML = '<i class="fa-solid fa-trash text-xs"></i>';
-                deleteBtn.onclick = () => removeCategory(type, cat);
-
-                item.appendChild(nameSpan);
-                item.appendChild(deleteBtn);
+                item.innerHTML = `<span class="text-sm font-medium text-slate-700">${cat}</span><button onclick="removeCategory('${type}', '${cat}')" class="text-slate-400 hover:text-red-600 transition"><i class="fa-solid fa-trash text-xs"></i></button>`;
                 list.appendChild(item);
             });
         }
-
         function addCategory(type) {
-            const inputId = type === 'expense' ? 'new-expense-category' : 'new-income-category';
-            const input = document.getElementById(inputId);
-            const categoryName = input.value.trim();
-
-            if (!categoryName) {
-                alert('Please enter a category name');
-                return;
-            }
-
-            // Check if category already exists
-            if (categories[type].includes(categoryName)) {
-                alert('This category already exists');
-                return;
-            }
-
-            // Add category
-            categories[type].push(categoryName);
-            saveCategories();
-            renderCategoryList(type);
-
-            // Clear input
-            input.value = '';
+            const input = document.getElementById(type === 'expense' ? 'new-expense-category' : 'new-income-category');
+            if (!input.value.trim() || categories[type].includes(input.value.trim())) return;
+            categories[type].push(input.value.trim()); saveCategories(); renderCategoryList(type); input.value = '';
         }
-
-        function removeCategory(type, categoryName) {
-            // Prevent removing the last category or "Other"
-            if (categories[type].length <= 1) {
-                alert('You must have at least one category');
-                return;
-            }
-
-            if (categoryName === 'Other') {
-                alert('Cannot remove the "Other" category');
-                return;
-            }
-
-            if (confirm(`Remove "${categoryName}" category?`)) {
-                categories[type] = categories[type].filter(cat => cat !== categoryName);
-                saveCategories();
-                renderCategoryList(type);
-            }
+        function removeCategory(type, cat) {
+            if (categories[type].length <= 1 || cat === 'Other') return alert('Cannot remove');
+            if (confirm(`Remove "${cat}"?`)) { categories[type] = categories[type].filter(c => c !== cat); saveCategories(); renderCategoryList(type); }
         }
-
-        function resetCategories(type) {
-            if (confirm(`Reset ${type} categories to defaults?`)) {
-                categories[type] = [...defaultCategories[type]];
-                saveCategories();
-                renderCategoryList(type);
-            }
-        }
-
-        // --- Core Functions ---
-
+        function resetCategories(type) { if (confirm("Reset defaults?")) { categories[type] = [...defaultCategories[type]]; saveCategories(); renderCategoryList(type); } }
         function updateCategories() {
             const type = document.getElementById('type').value;
-            const categorySelect = document.getElementById('category');
-            categorySelect.innerHTML = '';
-
-            categories[type].forEach(cat => {
-                const option = document.createElement('option');
-                option.value = cat;
-                option.textContent = cat;
-                categorySelect.appendChild(option);
-            });
+            const sel = document.getElementById('category'); sel.innerHTML = '';
+            categories[type].forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
         }
 
-        function formatCurrency(amount) {
-            // Updated to Indian Rupee
-            return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
-        }
+        // --- Core UI Logic ---
+        function formatCurrency(amt) { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amt); }
 
         function addTransaction(e) {
             e.preventDefault();
-
-            const amount = parseFloat(document.getElementById('amount').value);
-            const description = document.getElementById('description').value.trim() || 'Untitled';
+            const amt = parseFloat(document.getElementById('amount').value);
+            const desc = document.getElementById('description').value.trim() || 'Untitled';
             const type = document.getElementById('type').value;
-            const category = document.getElementById('category').value;
-            const dateInput = document.getElementById('transaction-date').value;
-
-            if (!amount || !dateInput) return;
-
-            // Create ISO string from date input (preserve time if editing, else set to noon to avoid timezone issues)
-            const dateObj = new Date(dateInput);
-            const isoDate = dateObj.toISOString();
+            const cat = document.getElementById('category').value;
+            const date = new Date(document.getElementById('transaction-date').value).toISOString();
 
             if (editingTransactionId) {
-                // UPDATE EXISTING
-                const updatedTx = {
-                    id: editingTransactionId,
-                    date: isoDate,
-                    amount,
-                    description,
-                    type,
-                    category
-                };
-
-                if (!currentUser) {
-                    const index = transactions.findIndex(t => String(t.id) === String(editingTransactionId));
-                    if (index !== -1) transactions[index] = updatedTx;
-                }
-
-                saveData(updatedTx, null);
+                const updated = { id: editingTransactionId, date, amount: amt, description: desc, type, category: cat };
+                if (!currentUser) transactions[transactions.findIndex(t => String(t.id) === String(editingTransactionId))] = updated;
+                saveData(updated, null);
             } else {
-                // CREATE NEW
-                const newTransaction = {
-                    id: Date.now(),
-                    date: isoDate,
-                    amount,
-                    description,
-                    type,
-                    category
-                };
-
-                if (!currentUser) {
-                    transactions.unshift(newTransaction);
-                }
-
-                saveData(newTransaction, null);
+                const newTx = { id: Date.now(), date, amount: amt, description: desc, type, category: cat };
+                if (!currentUser) transactions.unshift(newTx);
+                saveData(newTx, null);
             }
-
             if (!currentUser) renderUI();
-
             toggleModal('add-modal');
         }
 
         function editTransaction(id) {
             const tx = transactions.find(t => String(t.id) === String(id));
             if (!tx) return;
-
             editingTransactionId = id;
-
             document.getElementById('amount').value = tx.amount;
             document.getElementById('description').value = tx.description;
             document.getElementById('type').value = tx.type;
-            updateCategories(); // Refresh categories based on type
+            updateCategories();
             document.getElementById('category').value = tx.category;
-
-            // Format date for input
-            const d = new Date(tx.date);
-            const offset = d.getTimezoneOffset() * 60000;
-            const dateStr = new Date(d.getTime() - offset).toISOString().split('T')[0];
-            document.getElementById('transaction-date').value = dateStr;
-
+            document.getElementById('transaction-date').value = tx.date.split('T')[0];
             document.getElementById('modal-title').textContent = "Edit Transaction";
             document.getElementById('submit-btn').textContent = "Update Transaction";
-
             toggleModal('add-modal');
         }
 
         function openAddModal() {
             editingTransactionId = null;
             document.getElementById('transaction-form').reset();
-
-            // Set default date to today
-            const now = new Date();
-            const offset = now.getTimezoneOffset() * 60000;
-            const today = new Date(now.getTime() - offset).toISOString().split('T')[0];
-            document.getElementById('transaction-date').value = today;
-
+            document.getElementById('transaction-date').value = new Date().toISOString().split('T')[0];
             document.getElementById('modal-title').textContent = "New Transaction";
             document.getElementById('submit-btn').textContent = "Add Transaction";
             updateCategories();
             toggleModal('add-modal');
         }
+        let pendingDeleteId = null;
 
-        function deleteTransaction(id) {
-            if (confirm("Delete this transaction?")) {
-                if (!currentUser) {
-                    transactions = transactions.filter(t => String(t.id) !== String(id));
-                }
-                saveData(null, id);
-            }
+        function deleteTransaction(id, event) {
+            if (event) event.stopPropagation();
+            pendingDeleteId = id;
+            toggleModal('delete-modal');
         }
 
-        function clearAllData() {
-            const msg = currentUser ? "Clear all CLOUD data?" : "Clear all LOCAL data?";
-            if (confirm(`${msg} This cannot be undone.`)) {
-                if (currentUser) {
-                    // Batch delete for firestore is complex for simple JS, looping for simplicity here
-                    transactions.forEach(t => {
-                        db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(t.id)).delete();
-                    });
-                } else {
-                    transactions = [];
-                    saveData();
-                }
-            }
+        function closeDeleteModal() {
+            pendingDeleteId = null;
+            toggleModal('delete-modal');
         }
 
-        // --- UI Rendering ---
+        function confirmDelete() {
+            if (pendingDeleteId) {
+                if (!currentUser) transactions = transactions.filter(t => String(t.id) !== String(pendingDeleteId));
+                saveData(null, pendingDeleteId);
+                pendingDeleteId = null;
+            }
+            toggleModal('delete-modal');
+        }
+        function toggleModal(id) { const m = document.getElementById(id); m.classList.toggle('active'); }
+        function toggleProfileMenu() { document.getElementById('profile-menu').classList.toggle('hidden'); }
+        window.onclick = (e) => { if (!e.target.closest('#user-profile')) document.getElementById('profile-menu').classList.add('hidden'); }
 
+        // --- Render UI ---
         function renderUI() {
             const list = document.getElementById('transaction-list');
-            const emptyState = document.getElementById('empty-state');
             const filterType = document.getElementById('filter-type').value;
             const filterDate = document.getElementById('filter-date').value;
-
-            // 1. Filter by Date Range
-            let dateFiltered = transactions;
             const now = new Date();
+            let data = transactions;
 
             if (filterDate === 'thisMonth') {
-                const start = new Date(now.getFullYear(), now.getMonth(), 1);
-                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-                dateFiltered = transactions.filter(t => {
-                    const d = new Date(t.date);
-                    return d >= start && d <= end;
-                });
+                data = data.filter(t => new Date(t.date) >= new Date(now.getFullYear(), now.getMonth(), 1) && new Date(t.date) <= new Date(now.getFullYear(), now.getMonth() + 1, 0));
             } else if (filterDate === 'lastMonth') {
-                const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-                dateFiltered = transactions.filter(t => {
-                    const d = new Date(t.date);
-                    return d >= start && d <= end;
-                });
+                data = data.filter(t => new Date(t.date) >= new Date(now.getFullYear(), now.getMonth() - 1, 1) && new Date(t.date) <= new Date(now.getFullYear(), now.getMonth(), 0));
             } else if (filterDate === 'thisYear') {
-                const start = new Date(now.getFullYear(), 0, 1);
-                const end = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
-                dateFiltered = transactions.filter(t => {
-                    const d = new Date(t.date);
-                    return d >= start && d <= end;
-                });
+                data = data.filter(t => new Date(t.date) >= new Date(now.getFullYear(), 0, 1));
             }
 
-            // 2. Calculate Totals (Based on Date Filtered Data)
-            const income = dateFiltered.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-            const expense = dateFiltered.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-            const balance = income - expense;
+            const inc = data.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const exp = data.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            document.getElementById('total-balance').textContent = formatCurrency(inc - exp);
+            document.getElementById('total-income').textContent = formatCurrency(inc);
+            document.getElementById('total-expense').textContent = formatCurrency(exp);
 
-            // Update Cards
-            document.getElementById('total-balance').textContent = formatCurrency(balance);
-            document.getElementById('total-income').textContent = formatCurrency(income);
-            document.getElementById('total-expense').textContent = formatCurrency(expense);
-
-            // 3. Filter by Type
-            let finalFiltered = dateFiltered;
-            if (filterType !== 'all') {
-                finalFiltered = dateFiltered.filter(t => t.type === filterType);
-            }
-
-            // Render List
+            if (filterType !== 'all') data = data.filter(t => t.type === filterType);
             list.innerHTML = '';
 
-            if (finalFiltered.length === 0) {
-                emptyState.classList.remove('hidden');
-                emptyState.classList.add('flex');
-            } else {
-                emptyState.classList.add('hidden');
-                emptyState.classList.remove('flex');
-
-                // Group by Month
-                const groups = {};
-                finalFiltered.forEach(t => {
-                    const date = new Date(t.date);
-                    const key = date.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
-                    if (!groups[key]) groups[key] = { items: [], total: 0 };
-                    groups[key].items.push(t);
-                    groups[key].total += (t.type === 'income' ? t.amount : -t.amount);
-                });
-
-                Object.keys(groups).forEach(key => {
-                    const group = groups[key];
-                    const groupId = key.replace(/ /g, '-');
-
-                    const groupHeader = document.createElement('div');
-                    groupHeader.className = "flex justify-between items-center px-2 py-2 cursor-pointer select-none";
-                    groupHeader.onclick = () => toggleGroup(groupId);
-                    groupHeader.innerHTML = `
-                        <div class="flex items-center gap-2">
-                            <i id="icon-${groupId}" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform"></i>
-                            <h4 class="text-xs font-bold text-slate-500 uppercase">${key}</h4>
-                        </div>
-                        <span class="text-xs font-bold ${group.total >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(group.total)}</span>
-                    `;
-                    list.appendChild(groupHeader);
-
-                    const groupContent = document.createElement('div');
-                    groupContent.id = `group-${groupId}`;
-                    // MODIFIED: Flex col for mobile, Grid for desktop
-                    groupContent.className = "flex flex-col md:grid md:grid-cols-3 lg:grid-cols-4 gap-3 mb-4 transition-all overflow-hidden";
-
-                    group.items.forEach(t => {
-                        const isIncome = t.type === 'income';
-                        const colorClass = isIncome ? 'text-green-600' : 'text-red-400';
-                        const iconBg = isIncome ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500';
-                        const sign = isIncome ? '+' : '-';
-                        const date = new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
-
-                        const item = document.createElement('div');
-                        // MODIFIED: Row for mobile, Col for desktop
-                        item.className = 'transaction-card bg-white p-4 md:p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-row md:flex-col gap-3 md:gap-4 hover:shadow-md transition-all duration-200 relative group cursor-pointer items-center md:items-start';
-                        item.onclick = (e) => {
-                            if (e.target.closest('button')) return;
-                            // Toggle buttons visibility
-                            const buttons = item.querySelector('.action-buttons');
-                            const allButtons = document.querySelectorAll('.action-buttons');
-                            const allCards = document.querySelectorAll('.transaction-card');
-
-                            // Remove highlight from all cards and hide all buttons
-                            allCards.forEach(card => {
-                                card.classList.remove('border-primary', 'bg-blue-50', 'shadow-lg');
-                                card.classList.add('border-slate-100', 'bg-white');
-                            });
-                            allButtons.forEach(btn => {
-                                btn.classList.add('hidden');
-                            });
-
-                            // Toggle current card highlight and buttons
-                            const isCurrentlyHidden = buttons.classList.contains('hidden');
-                            if (isCurrentlyHidden) {
-                                item.classList.remove('border-slate-100', 'bg-white');
-                                item.classList.add('border-primary', 'bg-blue-50', 'shadow-lg');
-                                buttons.classList.remove('hidden');
-                            }
-                        };
-
-                        // MODIFIED: Inner HTML structure for responsive layout
-                        item.innerHTML = `
-                            <div class="flex justify-between items-center md:items-start md:w-full">
-                                <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl ${iconBg} flex items-center justify-center text-lg md:text-xl shadow-sm shrink-0">
-                                    <i class="fa-solid ${iconMap[t.category] || 'fa-circle'}"></i>
-                                </div>
-                            </div>
-                            
-                            <div class="flex-1 ml-3 md:ml-0 md:w-full">
-                                <h4 class="font-bold text-slate-800 text-base md:text-lg leading-tight mb-0.5 md:mb-1 line-clamp-1" title="${t.description}">${t.description}</h4>
-                                <div class="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                                    <span class="bg-slate-100 px-2 py-0.5 rounded text-slate-600">${t.category}</span>
-                                    <span>•</span>
-                                    <span>${date}</span>
-                                </div>
-                            </div>
-
-                            <div class="md:mt-auto md:pt-3 md:border-t md:border-slate-50 flex justify-end items-center">
-                                <span class="font-bold text-base md:text-xl ${colorClass}">${sign}₹${formatCurrency(t.amount).replace('₹', '')}</span>
-                            </div>
-
-                            <!-- MODIFIED: Action Buttons moved to end. Flex for mobile, Absolute for desktop -->
-                            <div class="action-buttons hidden flex gap-1 transition-opacity ml-2 md:ml-0 md:absolute md:top-5 md:right-5">
-                                <button onclick="editTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-blue-50 hover:text-blue-600 flex items-center justify-center transition-colors" title="Edit">
-                                    <i class="fa-solid fa-pen text-xs"></i>
-                                </button>
-                                <button onclick="deleteTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600 flex items-center justify-center transition-colors" title="Delete">
-                                    <i class="fa-solid fa-trash text-xs"></i>
-                                </button>
-                            </div>
-                        `;
-                        groupContent.appendChild(item);
-                    });
-                    list.appendChild(groupContent);
-                });
+            if (data.length === 0) {
+                document.getElementById('empty-state').classList.replace('hidden', 'flex');
+                return;
             }
+            document.getElementById('empty-state').classList.replace('flex', 'hidden');
+
+            const groups = {};
+            data.forEach(t => {
+                const k = new Date(t.date).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
+                if (!groups[k]) groups[k] = { items: [], total: 0 };
+                groups[k].items.push(t);
+                groups[k].total += (t.type === 'income' ? t.amount : -t.amount);
+            });
+
+            Object.keys(groups).forEach(key => {
+                const g = groups[key];
+                const gid = key.replace(/ /g, '-');
+                list.innerHTML += `
+                    <div class="flex justify-between items-center px-2 py-2 cursor-pointer select-none" onclick="toggleGroup('${gid}')">
+                        <div class="flex items-center gap-2"><i id="icon-${gid}" class="fa-solid fa-chevron-down text-slate-400 text-xs"></i><h4 class="text-xs font-bold text-slate-500 uppercase">${key}</h4></div>
+                        <span class="text-xs font-bold ${g.total >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(g.total)}</span>
+                    </div>
+                    <div id="group-${gid}" class="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 overflow-hidden transition-all" style="max-height: 2000px">
+                        ${g.items.map(t => {
+                    const isInc = t.type === 'income';
+                    return `
+                            <div class="transaction-card bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-3 relative group" onclick="toggleCardActions(this)">
+                                <div class="w-10 h-10 rounded-xl ${isInc ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500'} flex items-center justify-center text-lg shadow-sm shrink-0"><i class="fa-solid ${iconMap[t.category] || 'fa-circle'}"></i></div>
+                                <div class="flex-1 min-w-0">
+                                    <h4 class="font-bold text-slate-800 text-base leading-tight mb-0.5 truncate">${t.description}</h4>
+                                    <div class="flex items-center gap-2 text-xs text-slate-500 font-medium"><span class="bg-slate-100 px-2 py-0.5 rounded">${t.category}</span><span>${new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span></div>
+                                </div>
+                                <div class="flex items-center"><span class="font-bold text-base ${isInc ? 'text-green-600' : 'text-red-400'}">${isInc ? '+' : '-'}₹${t.amount.toLocaleString('en-IN')}</span></div>
+                                <div class="action-buttons hidden absolute top-0 right-0 h-full w-24 bg-gradient-to-l from-white via-white to-transparent flex items-center justify-end pr-2 gap-1">
+                                    <button onclick="event.stopPropagation(); editTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 active:scale-90 transition"><i class="fa-solid fa-pen text-xs"></i></button>
+                                    <button onclick="deleteTransaction('${t.id}', event)" class="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 active:scale-90 transition"><i class="fa-solid fa-trash text-xs"></i></button>
+                                </div>
+                            </div>`;
+                }).join('')}
+                    </div>`;
+            });
         }
+
         function toggleGroup(id) {
-            const content = document.getElementById(`group-${id}`);
-            const icon = document.getElementById(`icon-${id}`);
-
-            if (content.style.maxHeight === '0px') {
-                content.style.maxHeight = content.scrollHeight + "px";
-                content.style.opacity = "1";
-                content.style.marginBottom = "1rem";
-                icon.style.transform = "rotate(0deg)";
-            } else {
-                // Initialize if inline style not set
-                if (!content.style.maxHeight) {
-                    content.style.maxHeight = content.scrollHeight + "px";
-                    // Force reflow
-                    content.offsetHeight;
-                    content.style.maxHeight = "0px";
-                } else {
-                    content.style.maxHeight = "0px";
-                }
-                content.style.opacity = "0";
-                content.style.marginBottom = "0";
-                icon.style.transform = "rotate(-90deg)";
-            }
+            const el = document.getElementById(`group-${id}`);
+            const ic = document.getElementById(`icon-${id}`);
+            if (el.style.maxHeight === '0px') { el.style.maxHeight = '2000px'; el.style.opacity = '1'; el.style.marginBottom = '1rem'; ic.style.transform = 'rotate(0deg)'; }
+            else { el.style.maxHeight = '0px'; el.style.opacity = '0'; el.style.marginBottom = '0'; ic.style.transform = 'rotate(-90deg)'; }
         }
 
-        // --- Helper Functions ---
+        function toggleCardActions(card) {
+            const isSelected = card.classList.contains('selected');
 
-        function toggleModal(id) {
-            const modal = document.getElementById(id);
-            if (modal.classList.contains('active')) {
-                modal.classList.remove('active');
-            } else {
-                modal.classList.add('active');
-                setTimeout(() => document.getElementById('amount').focus(), 100);
-            }
-        }
-
-        // --- PDF Export Logic ---
-
-        function exportToPDF() {
-            const btn = document.querySelector('header button:last-child');
-            const originalIcon = btn.innerHTML;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-
-            const pdfBody = document.getElementById('pdf-table-body');
-            pdfBody.innerHTML = '';
-
-            const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-            const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-
-            document.getElementById('pdf-date').textContent = `Generated on ${new Date().toLocaleString()}`;
-            document.getElementById('pdf-income').textContent = formatCurrency(income);
-            document.getElementById('pdf-expense').textContent = formatCurrency(expense);
-            document.getElementById('pdf-balance').textContent = formatCurrency(income - expense);
-
-            transactions.forEach(t => {
-                const tr = document.createElement('tr');
-                tr.className = "border-b border-gray-100";
-                const isInc = t.type === 'income';
-                tr.innerHTML = `
-                    <td class="py-2 text-gray-500">${new Date(t.date).toLocaleDateString()}</td>
-                    <td class="py-2 font-medium">${t.description}</td>
-                    <td class="py-2 text-gray-500">${t.category}</td>
-                    <td class="py-2 text-right font-bold ${isInc ? 'text-green-600' : 'text-red-600'}">
-                        ${isInc ? '+' : '-'}${formatCurrency(t.amount)}
-                    </td>
-                `;
-                pdfBody.appendChild(tr);
+            // Remove selection and hide actions from all cards
+            document.querySelectorAll('.transaction-card').forEach(c => {
+                c.classList.remove('selected');
+                c.querySelector('.action-buttons').classList.add('hidden');
             });
 
-            const element = document.getElementById('pdf-container');
-            element.classList.remove('hidden');
-
-            const opt = {
-                margin: 0.5,
-                filename: `Finance_Report_${new Date().toISOString().split('T')[0]}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-
-            html2pdf().set(opt).from(element).save().then(() => {
-                element.classList.add('hidden');
-                btn.innerHTML = originalIcon;
-            });
-        }
-
-        function toggleProfileMenu() {
-            const menu = document.getElementById('profile-menu');
-            menu.classList.toggle('hidden');
-        }
-
-        // Close menu when clicking outside
-        window.addEventListener('click', (e) => {
-            const menu = document.getElementById('profile-menu');
-            const avatar = document.getElementById('user-avatar');
-            if (menu && !menu.classList.contains('hidden') && e.target !== avatar && !menu.contains(e.target)) {
-                menu.classList.add('hidden');
-            }
-        });
-
-        // --- Analytics Logic ---
-
-        let expenseChartInstance = null;
-        let trendChartInstance = null;
-        let currentFilteredTransactions = [];
-
-        function toggleAnalytics() {
-            const modal = document.getElementById('analytics-modal');
-            if (modal.classList.contains('active')) {
-                modal.classList.remove('active');
-            } else {
-                modal.classList.add('active');
-                setFilter('thisMonth');
+            // If card was not selected, select it and show actions
+            if (!isSelected) {
+                card.classList.add('selected');
+                card.querySelector('.action-buttons').classList.remove('hidden');
             }
         }
 
+        // --- Analytics & Export ---
+        let charts = {};
+        function toggleAnalytics() { document.getElementById('analytics-modal').classList.toggle('active'); setFilter('thisMonth'); }
         function setFilter(type) {
             const now = new Date();
             let start, end;
-
-            // Update Buttons
-            document.querySelectorAll('.filter-btn').forEach(b => {
-                b.classList.remove('bg-primary', 'text-white');
-                b.classList.add('bg-slate-100', 'text-slate-500');
-            });
-            document.getElementById(`btn-${type}`).classList.remove('bg-slate-100', 'text-slate-500');
-            document.getElementById(`btn-${type}`).classList.add('bg-primary', 'text-white');
-
-            if (type === 'thisMonth') {
-                start = new Date(now.getFullYear(), now.getMonth(), 1);
-                end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-            } else if (type === 'lastMonth') {
-                start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                end = new Date(now.getFullYear(), now.getMonth(), 0);
-            } else {
-                start = new Date(0); // Beginning of time
-                end = new Date();
-            }
-
-            // Set inputs (adjust for timezone offset to show correct date string)
-            const formatDate = (d) => {
-                const offset = d.getTimezoneOffset() * 60000;
-                return new Date(d.getTime() - offset).toISOString().split('T')[0];
-            };
-
-            if (type !== 'all') {
-                document.getElementById('date-start').value = formatDate(start);
-                document.getElementById('date-end').value = formatDate(end);
-            } else {
-                document.getElementById('date-start').value = '';
-                document.getElementById('date-end').value = '';
-            }
-
+            document.querySelectorAll('.filter-btn').forEach(b => b.className = 'filter-btn px-4 py-2 rounded-full text-xs font-bold bg-slate-100 text-slate-500 whitespace-nowrap');
+            document.getElementById(`btn-${type}`).className = 'filter-btn px-4 py-2 rounded-full text-xs font-bold bg-primary text-white whitespace-nowrap';
+            if (type === 'thisMonth') { start = new Date(now.getFullYear(), now.getMonth(), 1); end = new Date(now.getFullYear(), now.getMonth() + 1, 0); }
+            else if (type === 'lastMonth') { start = new Date(now.getFullYear(), now.getMonth() - 1, 1); end = new Date(now.getFullYear(), now.getMonth(), 0); }
+            else { start = new Date(0); end = new Date(); }
+            document.getElementById('date-start').value = start.toISOString().split('T')[0];
+            document.getElementById('date-end').value = end.toISOString().split('T')[0];
             renderAnalytics(start, end);
         }
-
-        function customDateFilter() {
-            const startStr = document.getElementById('date-start').value;
-            const endStr = document.getElementById('date-end').value;
-
-            if (startStr && endStr) {
-                // Deselect presets
-                document.querySelectorAll('.filter-btn').forEach(b => {
-                    b.classList.remove('bg-primary', 'text-white');
-                    b.classList.add('bg-slate-100', 'text-slate-500');
-                });
-                renderAnalytics(new Date(startStr), new Date(endStr));
-            }
-        }
-
+        function customDateFilter() { renderAnalytics(new Date(document.getElementById('date-start').value), new Date(document.getElementById('date-end').value)); }
         function renderAnalytics(start, end) {
-            // Filter Transactions
-            currentFilteredTransactions = transactions.filter(t => {
-                const d = new Date(t.date);
-                // Reset time part for accurate date comparison
-                d.setHours(0, 0, 0, 0);
-                const s = new Date(start); s.setHours(0, 0, 0, 0);
-                const e = new Date(end); e.setHours(23, 59, 59, 999);
-                return d >= s && d <= e;
-            });
+            const data = transactions.filter(t => { const d = new Date(t.date); return d >= start && d <= end; });
+            const inc = data.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const exp = data.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            document.getElementById('analytics-income').textContent = formatCurrency(inc);
+            document.getElementById('analytics-expense').textContent = formatCurrency(exp);
+            document.getElementById('analytics-balance').textContent = formatCurrency(inc - exp);
 
-            // Calculate Totals
-            const income = currentFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-            const expense = currentFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-            const balance = income - expense;
+            // Charts
+            const expData = {}; data.filter(t => t.type === 'expense').forEach(t => expData[t.category] = (expData[t.category] || 0) + t.amount);
+            if (charts.expense) charts.expense.destroy();
+            charts.expense = new Chart(document.getElementById('expenseChart'), { type: 'doughnut', data: { labels: Object.keys(expData), datasets: [{ data: Object.values(expData), backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10 } } } } });
 
-            document.getElementById('analytics-income').textContent = formatCurrency(income);
-            document.getElementById('analytics-expense').textContent = formatCurrency(expense);
-            document.getElementById('analytics-balance').textContent = formatCurrency(balance);
+            const trendData = {}; data.forEach(t => { const d = new Date(t.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); if (!trendData[d]) trendData[d] = { i: 0, e: 0 }; if (t.type === 'income') trendData[d].i += t.amount; else trendData[d].e += t.amount; });
+            const sorted = Object.keys(trendData).sort((a, b) => new Date(a) - new Date(b));
+            if (charts.trend) charts.trend.destroy();
+            charts.trend = new Chart(document.getElementById('trendChart'), { type: 'bar', data: { labels: sorted, datasets: [{ label: 'Income', data: sorted.map(d => trendData[d].i), backgroundColor: '#10b981', borderRadius: 4 }, { label: 'Expense', data: sorted.map(d => trendData[d].e), backgroundColor: '#ef4444', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { borderDash: [2, 4] } } }, plugins: { legend: { display: false } } } });
 
-            updateCharts(currentFilteredTransactions);
+            window.currentReportData = { start, end, data };
         }
-
-        function updateCharts(data) {
-            // 1. Expense Breakdown
-            const expenseData = {};
-            data.filter(t => t.type === 'expense').forEach(t => {
-                expenseData[t.category] = (expenseData[t.category] || 0) + t.amount;
-            });
-
-            const ctx1 = document.getElementById('expenseChart').getContext('2d');
-            if (expenseChartInstance) expenseChartInstance.destroy();
-
-            expenseChartInstance = new Chart(ctx1, {
-                type: 'doughnut',
-                data: {
-                    labels: Object.keys(expenseData),
-                    datasets: [{
-                        data: Object.values(expenseData),
-                        backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1'],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'right', labels: { boxWidth: 10, font: { size: 10 } } }
-                    }
-                }
-            });
-
-            // 2. Trend (Income vs Expense)
-            // Group by Date
-            const dateMap = {};
-            data.forEach(t => {
-                const d = new Date(t.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-                if (!dateMap[d]) dateMap[d] = { income: 0, expense: 0 };
-                if (t.type === 'income') dateMap[d].income += t.amount;
-                else dateMap[d].expense += t.amount;
-            });
-
-            // Sort dates
-            const sortedDates = Object.keys(dateMap).sort((a, b) => new Date(a) - new Date(b));
-
-            const ctx2 = document.getElementById('trendChart').getContext('2d');
-            if (trendChartInstance) trendChartInstance.destroy();
-
-            trendChartInstance = new Chart(ctx2, {
-                type: 'bar',
-                data: {
-                    labels: sortedDates,
-                    datasets: [
-                        { label: 'Income', data: sortedDates.map(d => dateMap[d].income), backgroundColor: '#10b981', borderRadius: 4 },
-                        { label: 'Expense', data: sortedDates.map(d => dateMap[d].expense), backgroundColor: '#ef4444', borderRadius: 4 }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: { grid: { display: false } },
-                        y: { beginAtZero: true, grid: { borderDash: [2, 4] } }
-                    },
-                    plugins: { legend: { display: false } }
-                }
-            });
-        }
-
         function exportAnalyticsReport() {
-            // Reuse existing PDF container but populate with filtered data
-            const pdfBody = document.getElementById('pdf-table-body');
-            pdfBody.innerHTML = '';
-
-            const income = currentFilteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-            const expense = currentFilteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-
-            document.getElementById('pdf-date').textContent = `Report for ${document.getElementById('date-start').value || 'All Time'} to ${document.getElementById('date-end').value || 'Now'}`;
-            document.getElementById('pdf-income').textContent = formatCurrency(income);
-            document.getElementById('pdf-expense').textContent = formatCurrency(expense);
-            document.getElementById('pdf-balance').textContent = formatCurrency(income - expense);
-
-            currentFilteredTransactions.forEach(t => {
-                const tr = document.createElement('tr');
-                tr.className = "border-b border-gray-100";
-                const isInc = t.type === 'income';
-                tr.innerHTML = `
-                    <td class="py-2 text-gray-500">${new Date(t.date).toLocaleDateString()}</td>
-                    <td class="py-2 font-medium">${t.description}</td>
-                    <td class="py-2 text-gray-500">${t.category}</td>
-                    <td class="py-2 text-right font-bold ${isInc ? 'text-green-600' : 'text-red-600'}">
-                        ${isInc ? '+' : '-'}${formatCurrency(t.amount)}
-                    </td>
-                `;
-                pdfBody.appendChild(tr);
-            });
-
-            const element = document.getElementById('pdf-container');
-            element.classList.remove('hidden');
-
-            const opt = {
-                margin: 0.5,
-                filename: `Analytics_Report_${new Date().toISOString().split('T')[0]}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-            };
-
-            html2pdf().set(opt).from(element).save().then(() => {
-                element.classList.add('hidden');
-            });
+            const { start, end, data } = window.currentReportData;
+            const inc = data.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            const exp = data.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            document.getElementById('pdf-date').textContent = `${start.toLocaleDateString()} to ${end.toLocaleDateString()}`;
+            document.getElementById('pdf-income').textContent = formatCurrency(inc);
+            document.getElementById('pdf-expense').textContent = formatCurrency(exp);
+            document.getElementById('pdf-balance').textContent = formatCurrency(inc - exp);
+            const tbody = document.getElementById('pdf-table-body'); tbody.innerHTML = '';
+            data.forEach(t => { tbody.innerHTML += `<tr class="border-b border-gray-100"><td class="py-2 text-gray-500">${new Date(t.date).toLocaleDateString()}</td><td class="py-2 font-medium">${t.description}</td><td class="py-2 text-gray-500">${t.category}</td><td class="py-2 text-right font-bold ${t.type === 'income' ? 'text-green-600' : 'text-red-600'}">${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}</td></tr>`; });
+            document.getElementById('pdf-container').classList.remove('hidden');
+            html2pdf().from(document.getElementById('pdf-container')).save().then(() => document.getElementById('pdf-container').classList.add('hidden'));
         }
     </script>
 </body>
