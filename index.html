@@ -174,28 +174,70 @@
             </div>
         </div>
 
-        <div class="flex justify-between items-center mb-4 px-1">
-            <h3 class="font-bold text-lg text-slate-800">Transactions</h3>
-            <div class="flex gap-2 flex-wrap justify-end">
-                <select id="filter-account" onchange="renderUI()"
-                    class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none">
-                    <option value="all">All Accounts</option>
-                </select>
-                <select id="filter-date" onchange="renderUI()"
-                    class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none">
-                    <option value="all">All Time</option>
-                    <option value="thisMonth">This Month</option>
-                    <option value="lastMonth">Last Month</option>
-                    <option value="thisYear">This Year</option>
-                </select>
-                <select id="filter-type" onchange="renderUI()"
-                    class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none">
-                    <option value="all">All Types</option>
-                    <option value="income">Income</option>
-                    <option value="expense">Expense</option>
-                </select>
+        <div class="flex justify-between items-center mb-3 px-1">
+            <div class="flex items-center gap-2">
+                <h3 class="font-bold text-base text-slate-800">Transactions</h3>
+                <button onclick="refreshApp()" id="refresh-btn"
+                    class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition"
+                    title="Refresh">
+                    <i class="fa-solid fa-arrows-rotate text-xs"></i>
+                </button>
+            </div>
+            <div class="flex gap-1 items-center">
+                <span id="active-filter-badge"
+                    class="hidden text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-medium"></span>
+                <button id="clear-filter-btn" onclick="clearFilters()"
+                    class="hidden w-5 h-5 rounded-full bg-red-100 text-red-500 flex items-center justify-center hover:bg-red-200 active:scale-90 transition"
+                    title="Clear Filters">
+                    <i class="fa-solid fa-xmark text-[10px]"></i>
+                </button>
+                <button onclick="toggleFilterPanel()"
+                    class="w-8 h-8 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center hover:bg-slate-200 active:scale-90 transition"
+                    title="Filters">
+                    <i class="fa-solid fa-filter text-xs"></i>
+                </button>
             </div>
         </div>
+
+        <!-- Filter Panel (Hidden by default) -->
+        <div id="filter-panel" class="hidden bg-white rounded-xl shadow-lg border border-slate-100 p-4 mb-4 mx-1">
+            <div class="flex justify-between items-center mb-3">
+                <h4 class="font-bold text-sm text-slate-700">Filters</h4>
+                <button onclick="clearFilters()" class="text-xs text-blue-600 font-medium hover:underline">Clear
+                    All</button>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Account</label>
+                    <select id="filter-account" onchange="renderUI(); updateFilterBadge();"
+                        class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg px-2 py-2 focus:outline-none">
+                        <option value="all">All Accounts</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">Type</label>
+                    <select id="filter-type" onchange="renderUI(); updateFilterBadge();"
+                        class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg px-2 py-2 focus:outline-none">
+                        <option value="all">All Types</option>
+                        <option value="income">Income</option>
+                        <option value="expense">Expense</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">From Date</label>
+                    <input type="date" id="filter-date-start" onchange="renderUI(); updateFilterBadge();"
+                        class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg px-2 py-2 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-semibold text-slate-500 uppercase mb-1">To Date</label>
+                    <input type="date" id="filter-date-end" onchange="renderUI(); updateFilterBadge();"
+                        class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg px-2 py-2 focus:outline-none">
+                </div>
+            </div>
+            <button onclick="toggleFilterPanel()"
+                class="w-full mt-3 bg-primary text-white font-bold py-2 rounded-lg text-sm">Apply Filters</button>
+        </div>
+
 
         <div id="empty-state" class="hidden flex-col items-center justify-center py-12 text-slate-400">
             <i class="fa-solid fa-receipt text-4xl mb-3 opacity-50"></i>
@@ -634,6 +676,7 @@
             document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
             loadCategories();
             loadAccounts();
+            loadFilters();
             updateCategories();
             updateAccountSelectors();
             if (!currentUser) loadFromLocal();
@@ -1262,16 +1305,160 @@
         function toggleProfileMenu() { document.getElementById('profile-menu').classList.toggle('hidden'); }
         window.onclick = (e) => { if (!e.target.closest('#user-profile')) document.getElementById('profile-menu').classList.add('hidden'); }
 
+        // --- Refresh App ---
+        function refreshApp() {
+            const btn = document.getElementById('refresh-btn');
+            if (btn) btn.classList.add('animate-spin');
+
+            // Reload data from storage
+            loadCategories();
+            loadAccounts();
+            if (currentUser && isFirebaseReady) {
+                loadFromCloud();
+            } else {
+                loadFromLocal();
+            }
+            updateCategories();
+            updateAccountSelectors();
+
+            setTimeout(() => {
+                if (btn) btn.classList.remove('animate-spin');
+                showToast('Refreshed!');
+            }, 500);
+        }
+
+        // --- Filter Panel ---
+        function toggleFilterPanel() {
+            const panel = document.getElementById('filter-panel');
+            panel.classList.toggle('hidden');
+        }
+
+        function clearFilters() {
+            document.getElementById('filter-account').value = 'all';
+            document.getElementById('filter-type').value = 'all';
+            document.getElementById('filter-date-start').value = '';
+            document.getElementById('filter-date-end').value = '';
+            updateFilterBadge();
+            renderUI();
+        }
+
+        function updateFilterBadge() {
+            const account = document.getElementById('filter-account').value;
+            const type = document.getElementById('filter-type').value;
+            const dateStart = document.getElementById('filter-date-start').value;
+            const dateEnd = document.getElementById('filter-date-end').value;
+
+            let count = 0;
+            if (account !== 'all') count++;
+            if (type !== 'all') count++;
+            if (dateStart) count++;
+            if (dateEnd) count++;
+
+            const badge = document.getElementById('active-filter-badge');
+            const clearBtn = document.getElementById('clear-filter-btn');
+            if (count > 0) {
+                badge.textContent = count + ' filter' + (count > 1 ? 's' : '');
+                badge.classList.remove('hidden');
+                if (clearBtn) clearBtn.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+                if (clearBtn) clearBtn.classList.add('hidden');
+            }
+
+            // Save filters to localStorage
+            saveFilters();
+        }
+
+        function saveFilters() {
+            const filters = {
+                account: document.getElementById('filter-account')?.value || 'all',
+                type: document.getElementById('filter-type')?.value || 'all',
+                dateStart: document.getElementById('filter-date-start')?.value || '',
+                dateEnd: document.getElementById('filter-date-end')?.value || ''
+            };
+            localStorage.setItem('transactionFilters', JSON.stringify(filters));
+        }
+
+        function loadFilters() {
+            const saved = localStorage.getItem('transactionFilters');
+            if (saved) {
+                const filters = JSON.parse(saved);
+                const accEl = document.getElementById('filter-account');
+                const typeEl = document.getElementById('filter-type');
+                const startEl = document.getElementById('filter-date-start');
+                const endEl = document.getElementById('filter-date-end');
+
+                if (typeEl && filters.type) typeEl.value = filters.type;
+                if (startEl && filters.dateStart) startEl.value = filters.dateStart;
+                if (endEl && filters.dateEnd) endEl.value = filters.dateEnd;
+
+                // Account filter needs to wait for accounts to load
+                setTimeout(() => {
+                    if (accEl && filters.account) {
+                        // Check if the saved account still exists
+                        const optionExists = Array.from(accEl.options).some(o => o.value === filters.account);
+                        if (optionExists) accEl.value = filters.account;
+                    }
+                    updateFilterBadge();
+                    renderUI();
+                }, 100);
+            }
+        }
+
+        // --- Pull to Refresh (Mobile) ---
+        let pullStartY = 0;
+        let isPulling = false;
+        const pullThreshold = 80;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const main = document.getElementById('main-container');
+
+            main.addEventListener('touchstart', (e) => {
+                if (main.scrollTop === 0) {
+                    pullStartY = e.touches[0].clientY;
+                    isPulling = true;
+                }
+            }, { passive: true });
+
+            main.addEventListener('touchmove', (e) => {
+                if (!isPulling) return;
+                const pullDistance = e.touches[0].clientY - pullStartY;
+
+                if (pullDistance > 0 && main.scrollTop === 0) {
+                    // Show visual feedback
+                    const progress = Math.min(pullDistance / pullThreshold, 1);
+                    const refreshBtn = document.getElementById('refresh-btn');
+                    if (refreshBtn) {
+                        refreshBtn.style.transform = `rotate(${progress * 360}deg)`;
+                    }
+                }
+            }, { passive: true });
+
+            main.addEventListener('touchend', (e) => {
+                if (!isPulling) return;
+                isPulling = false;
+
+                const refreshBtn = document.getElementById('refresh-btn');
+                if (refreshBtn) {
+                    refreshBtn.style.transform = '';
+                }
+
+                const pullDistance = e.changedTouches[0].clientY - pullStartY;
+                if (pullDistance > pullThreshold && main.scrollTop === 0) {
+                    refreshApp();
+                }
+            }, { passive: true });
+        });
+
         // --- Render UI ---
         function renderUI() {
             const list = document.getElementById('transaction-list');
             const filterType = document.getElementById('filter-type').value;
-            const filterDate = document.getElementById('filter-date').value;
+            const filterDateStart = document.getElementById('filter-date-start')?.value;
+            const filterDateEnd = document.getElementById('filter-date-end')?.value;
             const filterAccount = document.getElementById('filter-account')?.value || 'all';
-            const now = new Date();
             let data = transactions;
 
-            // Account filter
             // Account filter - also include transactions without accountId when filtering by default account
             if (filterAccount !== 'all') {
                 const defaultAccId = accounts[0]?.id || 'default';
@@ -1284,13 +1471,18 @@
                 });
             }
 
-            if (filterDate === 'thisMonth') {
-                data = data.filter(t => new Date(t.date) >= new Date(now.getFullYear(), now.getMonth(), 1) && new Date(t.date) <= new Date(now.getFullYear(), now.getMonth() + 1, 0));
-            } else if (filterDate === 'lastMonth') {
-                data = data.filter(t => new Date(t.date) >= new Date(now.getFullYear(), now.getMonth() - 1, 1) && new Date(t.date) <= new Date(now.getFullYear(), now.getMonth(), 0));
-            } else if (filterDate === 'thisYear') {
-                data = data.filter(t => new Date(t.date) >= new Date(now.getFullYear(), 0, 1));
+            // Date range filter
+            if (filterDateStart) {
+                const startDate = new Date(filterDateStart);
+                startDate.setHours(0, 0, 0, 0);
+                data = data.filter(t => new Date(t.date) >= startDate);
             }
+            if (filterDateEnd) {
+                const endDate = new Date(filterDateEnd);
+                endDate.setHours(23, 59, 59, 999);
+                data = data.filter(t => new Date(t.date) <= endDate);
+            }
+
 
             const inc = data.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
             const exp = data.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
