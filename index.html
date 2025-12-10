@@ -103,20 +103,6 @@
             <p class="text-xs text-slate-500" id="current-date">Loading...</p>
         </div>
         <div class="flex gap-3 items-center">
-            <div id="user-profile" class="hidden relative flex items-center gap-2">
-                <img id="user-avatar" src="" onclick="toggleProfileMenu()"
-                    class="w-10 h-10 rounded-full border-2 border-white shadow-sm cursor-pointer hover:scale-105 transition"
-                    alt="User">
-
-                <div id="profile-menu"
-                    class="hidden absolute top-12 right-0 bg-white shadow-xl rounded-xl p-1 z-50 min-w-[140px] border border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <button onclick="googleLogout()"
-                        class="w-full text-left text-sm text-red-500 font-medium hover:bg-red-50 px-3 py-2 rounded-lg transition flex items-center gap-2">
-                        <i class="fa-solid fa-right-from-bracket"></i> Logout
-                    </button>
-                </div>
-            </div>
-
             <button id="login-btn" onclick="googleLogin()"
                 class="hidden bg-white border border-slate-200 text-slate-600 px-3 h-10 rounded-full flex items-center gap-2 text-xs font-bold hover:bg-slate-50 transition">
                 <i class="fa-brands fa-google text-red-500"></i> Sync
@@ -156,6 +142,20 @@
                             <i class="fa-solid fa-wallet text-xs"></i>
                         </span>
                         Accounts
+                    </button>
+                </div>
+            </div>
+
+            <div id="user-profile" class="hidden relative flex items-center gap-2">
+                <img id="user-avatar" src="" onclick="toggleProfileMenu()"
+                    class="w-10 h-10 rounded-full border-2 border-white shadow-sm cursor-pointer hover:scale-105 transition"
+                    alt="User">
+
+                <div id="profile-menu"
+                    class="hidden absolute top-12 right-0 bg-white shadow-xl rounded-xl p-1 z-50 min-w-[140px] border border-slate-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <button onclick="googleLogout()"
+                        class="w-full text-left text-sm text-red-500 font-medium hover:bg-red-50 px-3 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-right-from-bracket"></i> Logout
                     </button>
                 </div>
             </div>
@@ -317,16 +317,31 @@
                             class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary appearance-none">
                             <option value="expense">Expense</option>
                             <option value="income">Income</option>
+                            <option value="transfer">Transfer</option>
                         </select>
                     </div>
-                    <div>
+                    <div id="category-container">
                         <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Category</label>
                         <select id="category"
                             class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary appearance-none"></select>
                     </div>
                 </div>
+
+                <div class="mb-4 hidden" id="to-account-wrapper">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">To Account</label>
+                    <div class="relative">
+                        <select id="to-account"
+                            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary appearance-none">
+                            <!-- Populated by JS -->
+                        </select>
+                        <i
+                            class="fa-solid fa-chevron-down absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                    </div>
+                </div>
+
                 <div class="mb-6">
-                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Account</label>
+                    <label id="account-label"
+                        class="block text-xs font-semibold text-slate-500 uppercase mb-1">Account</label>
                     <select id="transaction-account"
                         class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary appearance-none"></select>
                 </div>
@@ -478,6 +493,16 @@
         </div>
         <div class="flex-1 overflow-y-auto p-4 pb-24 no-scrollbar">
             <div class="bg-white p-4 rounded-2xl shadow-sm mb-6">
+                <!-- Analytics Account Filter -->
+                <div class="mb-4">
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Filter by Account</label>
+                    <select id="analytics-account"
+                        onchange="const dS = document.getElementById('date-start').value; const dE = document.getElementById('date-end').value; renderAnalytics(new Date(dS), new Date(dE));"
+                        class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-3 py-2 focus:outline-none">
+                        <option value="all">All Accounts</option>
+                    </select>
+                </div>
+
                 <div class="flex gap-2 mb-4 overflow-x-auto no-scrollbar pb-1">
                     <button onclick="setFilter('thisMonth')"
                         class="filter-btn px-4 py-2 rounded-full text-xs font-bold bg-primary text-white whitespace-nowrap"
@@ -979,8 +1004,19 @@
                         let finalData = raw;
                         if (raw.isEncrypted) {
                             const decrypted = decryptData(raw);
-                            if (decrypted) finalData = decrypted;
-                            else return; // Skip if decryption fails
+                            if (decrypted) {
+                                finalData = decrypted;
+                            } else {
+                                // Decryption failed - Show placeholder
+                                finalData = {
+                                    description: "🔒 Encrypted Data (Check PIN)",
+                                    amount: 0,
+                                    type: 'expense',
+                                    category: 'Other',
+                                    date: raw.date || new Date().toISOString(),
+                                    isLocked: true
+                                };
+                            }
                         }
 
                         loaded.push({ id: doc.id, ...finalData });
@@ -1000,25 +1036,25 @@
             }
 
             try {
-                const snapshot = await db.collection('users').doc(currentUser.uid).collection('transactions').get();
-                const cloudIds = new Set(snapshot.docs.map(doc => doc.id));
-                const batch = db.batch();
-                let syncCount = 0;
+                // Batch processing (limit 500 per batch)
+                const chunkSize = 400;
+                for (let i = 0; i < localTransactions.length; i += chunkSize) {
+                    const chunk = localTransactions.slice(i, i + chunkSize);
+                    const batch = db.batch();
 
-                localTransactions.forEach(tx => {
-                    if (!cloudIds.has(String(tx.id))) {
+                    chunk.forEach(tx => {
                         const { id, ...data } = tx;
-                        // ENCRYPT BEFORE UPLOAD
                         const dataToSave = encryptData(data);
                         const docRef = db.collection('users').doc(currentUser.uid).collection('transactions').doc(String(id));
                         batch.set(docRef, dataToSave);
-                        syncCount++;
-                    }
-                });
+                    });
 
-                if (syncCount > 0) await batch.commit();
+                    await batch.commit();
+                }
+
                 localStorage.removeItem('transactions');
                 loadFromCloud();
+                showToast('Sync Complete!');
             } catch (error) {
                 console.error('Sync Error:', error);
                 loadFromCloud();
@@ -1092,8 +1128,35 @@
         function resetCategories(type) { if (confirm("Reset defaults?")) { categories[type] = [...defaultCategories[type]]; saveCategories(); renderCategoryList(type); } }
         function updateCategories() {
             const type = document.getElementById('type').value;
-            const sel = document.getElementById('category'); sel.innerHTML = '';
-            categories[type].forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+            const catContainer = document.getElementById('category-container');
+            const toAccWrapper = document.getElementById('to-account-wrapper');
+            const accLabel = document.getElementById('account-label');
+
+            if (type === 'transfer') {
+                catContainer.classList.add('hidden');
+                toAccWrapper.classList.remove('hidden');
+                accLabel.textContent = "From Account";
+
+                // Populate To Account
+                const toSel = document.getElementById('to-account');
+                toSel.innerHTML = '';
+                accounts.forEach(acc => {
+                    const o = document.createElement('option');
+                    o.value = acc.id;
+                    o.textContent = acc.name;
+                    toSel.appendChild(o);
+                });
+            } else {
+                catContainer.classList.remove('hidden');
+                toAccWrapper.classList.add('hidden');
+                accLabel.textContent = "Account";
+
+                const sel = document.getElementById('category');
+                sel.innerHTML = '';
+                if (categories[type]) {
+                    categories[type].forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+                }
+            }
         }
 
         // --- Accounts Management ---
@@ -1251,37 +1314,27 @@
         }
 
         function updateAccountSelectors() {
-            // Update transaction form account dropdown
-            const txSelect = document.getElementById('transaction-account');
-            if (txSelect) {
-                const currentVal = txSelect.value;
-                txSelect.innerHTML = '';
-                accounts.forEach(acc => {
-                    const o = document.createElement('option');
-                    o.value = acc.id;
-                    o.textContent = acc.name;
-                    txSelect.appendChild(o);
-                });
-                if (currentVal && accounts.find(a => a.id === currentVal)) {
-                    txSelect.value = currentVal;
-                }
-            }
+            const accSelect = document.getElementById('transaction-account');
+            const filterSel = document.getElementById('filter-account');
+            const analyticsSel = document.getElementById('analytics-account');
 
-            // Update filter dropdown
-            const filterSelect = document.getElementById('filter-account');
-            if (filterSelect) {
-                const currentFilter = filterSelect.value;
-                filterSelect.innerHTML = '<option value="all">All Accounts</option>';
+            [accSelect, filterSel, analyticsSel].forEach(sel => {
+                if (!sel) return;
+                const currentVal = sel.value;
+                // Preserve 'all' option for filters
+                const isFilter = sel.id === 'filter-account' || sel.id === 'analytics-account';
+                sel.innerHTML = isFilter ? '<option value="all">All Accounts</option>' : '';
+
                 accounts.forEach(acc => {
                     const o = document.createElement('option');
                     o.value = acc.id;
                     o.textContent = acc.name;
-                    filterSelect.appendChild(o);
+                    sel.appendChild(o);
                 });
-                if (currentFilter !== 'all' && accounts.find(a => a.id === currentFilter)) {
-                    filterSelect.value = currentFilter;
+                if (currentVal && Array.from(sel.options).some(o => o.value === currentVal)) {
+                    sel.value = currentVal;
                 }
-            }
+            });
         }
 
         function getAccountName(accountId) {
@@ -1306,13 +1359,22 @@
             const cat = document.getElementById('category').value;
             const date = new Date(document.getElementById('transaction-date').value).toISOString();
             const accountId = document.getElementById('transaction-account').value || accounts[0]?.id || 'default';
+            const toAccountId = type === 'transfer' ? document.getElementById('to-account').value : null;
+
+            if (type === 'transfer' && accountId === toAccountId) {
+                alert("Transfer source and destination must be different.");
+                return;
+            }
+
+            const baseData = { date, amount: amt, description: desc, type, category: type === 'transfer' ? 'Transfer' : cat, accountId };
+            if (type === 'transfer') baseData.toAccountId = toAccountId;
 
             if (editingTransactionId) {
-                const updated = { id: editingTransactionId, date, amount: amt, description: desc, type, category: cat, accountId };
+                const updated = { id: editingTransactionId, ...baseData };
                 if (!currentUser) transactions[transactions.findIndex(t => String(t.id) === String(editingTransactionId))] = updated;
                 saveData(updated, null);
             } else {
-                const newTx = { id: Date.now(), date, amount: amt, description: desc, type, category: cat, accountId };
+                const newTx = { id: Date.now(), ...baseData };
                 if (!currentUser) transactions.unshift(newTx);
                 saveData(newTx, null);
             }
@@ -1327,8 +1389,19 @@
             document.getElementById('amount').value = tx.amount;
             document.getElementById('description').value = tx.description;
             document.getElementById('type').value = tx.type;
+
             updateCategories();
-            document.getElementById('category').value = tx.category;
+
+            if (tx.type !== 'transfer') {
+                document.getElementById('category').value = tx.category;
+            } else {
+                if (tx.toAccountId) {
+                    const toSel = document.getElementById('to-account');
+                    // Check if options are populated (updateCategories does it, but we need to match value)
+                    toSel.value = tx.toAccountId;
+                }
+            }
+
             document.getElementById('transaction-date').value = tx.date.split('T')[0];
             // Set account
             const accSelect = document.getElementById('transaction-account');
@@ -1576,11 +1649,13 @@
             if (filterAccount !== 'all') {
                 const defaultAccId = accounts[0]?.id || 'default';
                 data = data.filter(t => {
+                    const matchesAccount = t.accountId === filterAccount || t.toAccountId === filterAccount;
+
                     if (filterAccount === defaultAccId) {
-                        // Include transactions that match OR have no accountId
-                        return t.accountId === filterAccount || !t.accountId;
+                        // Include transactions that match OR have no accountId (legacy/default)
+                        return matchesAccount || (!t.accountId && !t.toAccountId);
                     }
-                    return t.accountId === filterAccount;
+                    return matchesAccount;
                 });
             }
 
@@ -1597,8 +1672,20 @@
             }
 
 
-            const inc = data.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-            const exp = data.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            let inc = data.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
+            let exp = data.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+
+            // Adjust totals for transfer if requested (include in income/expense for volume)
+            // But per requirement "Transfers should have two entry 1. From <entity> 2. To <entity>" logic suggests user wants to see it.
+            // My previous implementation correctly handles "From" and "To" in the filter views.
+            // To make it "count" for total income/expense in 'All Accounts' view:
+            if (filterAccount === 'all') {
+                // We need to re-calculate inc/exp to include transfers
+                const transferSum = data.filter(t => t.type === 'transfer').reduce((s, t) => s + t.amount, 0);
+                inc += transferSum;
+                exp += transferSum;
+            }
+
             document.getElementById('total-balance').textContent = formatCurrency(inc - exp);
             document.getElementById('total-income').textContent = formatCurrency(inc);
             document.getElementById('total-expense').textContent = formatCurrency(exp);
@@ -1616,8 +1703,30 @@
             data.forEach(t => {
                 const k = new Date(t.date).toLocaleString('en-IN', { month: 'long', year: 'numeric' });
                 if (!groups[k]) groups[k] = { items: [], total: 0 };
-                groups[k].items.push(t);
-                groups[k].total += (t.type === 'income' ? t.amount : -t.amount);
+
+                if (t.type === 'transfer' && filterAccount === 'all') {
+                    // Split into two entries: One Debit (From), One Credit (To)
+
+                    // 1. Debit Entry (From Account)
+                    const debitItem = { ...t, _isVirtual: true, _virtualType: 'debit', amount: -Math.abs(t.amount) };
+                    groups[k].items.push(debitItem);
+
+                    // 2. Credit Entry (To Account)
+                    const creditItem = { ...t, _isVirtual: true, _virtualType: 'credit', amount: Math.abs(t.amount) };
+                    groups[k].items.push(creditItem);
+
+                    // Net total change is 0
+                } else {
+                    groups[k].items.push(t);
+                    if (t.type === 'transfer') {
+                        if (filterAccount !== 'all') {
+                            if (t.accountId === filterAccount) groups[k].total -= t.amount;
+                            else if (t.toAccountId === filterAccount) groups[k].total += t.amount;
+                        }
+                    } else {
+                        groups[k].total += (t.type === 'income' ? t.amount : -t.amount);
+                    }
+                }
             });
 
             Object.keys(groups).forEach(key => {
@@ -1626,26 +1735,67 @@
                 list.innerHTML += `
                     <div class="flex justify-between items-center px-2 py-2 cursor-pointer select-none" onclick="toggleGroup('${gid}')">
                         <div class="flex items-center gap-2"><i id="icon-${gid}" class="fa-solid fa-chevron-down text-slate-400 text-xs"></i><h4 class="text-xs font-bold text-slate-500 uppercase">${key}</h4></div>
-                        <span class="text-xs font-bold ${g.total >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(g.total)}</span>
+                        <span class="text-xs font-bold privacy-sensitive ${g.total >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(g.total)}</span>
                     </div>
                     <div id="group-${gid}" class="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 overflow-hidden transition-all" style="max-height: 2000px">
                         ${g.items.map(t => {
                     const isInc = t.type === 'income';
+                    const isTrf = t.type === 'transfer';
                     const accName = getAccountName(t.accountId);
+                    const toAccName = t.toAccountId ? getAccountName(t.toAccountId) : '';
+
+                    let bgClass = isInc ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500';
+                    let icon = iconMap[t.category] || 'fa-circle';
+                    let amountClass = isInc ? 'text-green-600' : 'text-red-400';
+                    let sign = isInc ? '+' : '-';
+                    let title = t.description;
+                    let displayAccName = accName;
+
+                    if (isTrf) {
+                        bgClass = 'bg-blue-100 text-blue-600';
+                        icon = 'fa-arrow-right-arrow-left';
+                        amountClass = 'text-blue-600';
+
+                        // Handle Split Transfer Views
+                        if (t._isVirtual) {
+                            if (t._virtualType === 'debit') {
+                                // "From Account" Entry (The sender side)
+                                title = "To " + toAccName;
+                                displayAccName = accName; // Show source account in badge
+                                sign = '-';
+                                amountClass = 'text-slate-600';
+                            } else {
+                                // "To Account" Entry (The receiver side)
+                                title = "From " + accName;
+                                displayAccName = toAccName; // Show dest account in badge
+                                sign = '+';
+                                amountClass = 'text-green-600';
+                            }
+                        } else {
+                            // Single Account View / Legacy
+                            if (filterAccount !== 'all') {
+                                if (t.accountId === filterAccount) { sign = '-'; amountClass = 'text-slate-600'; title = "To " + toAccName; }
+                                else if (t.toAccountId === filterAccount) { sign = '+'; amountClass = 'text-green-600'; displayAccName = toAccName; title = "From " + accName; }
+                            } else {
+                                sign = '';
+                                title = `${t.description} (${accName} ➝ ${toAccName})`;
+                            }
+                        }
+                    }
+
                     return `
                             <div class="transaction-card bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-3 relative group" onclick="toggleCardActions(this)">
-                                <div class="w-10 h-10 rounded-xl ${isInc ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500'} flex items-center justify-center text-lg shadow-sm shrink-0"><i class="fa-solid ${iconMap[t.category] || 'fa-circle'}"></i></div>
+                                <div class="w-10 h-10 rounded-xl ${bgClass} flex items-center justify-center text-lg shadow-sm shrink-0"><i class="fa-solid ${icon}"></i></div>
                                 <div class="flex-1 min-w-0">
-                                    <h4 class="font-bold text-slate-800 text-base leading-tight mb-0.5 truncate">${t.description}</h4>
-                                    <div class="flex items-center gap-2 text-xs text-slate-500 font-medium flex-wrap"><span class="bg-slate-100 px-2 py-0.5 rounded">${t.category}</span><span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded"><i class="fa-solid fa-wallet text-[10px] mr-1"></i>${accName}</span><span>${new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span></div>
+                                    <h4 class="font-bold text-slate-800 text-base leading-tight mb-0.5 truncate">${title}</h4>
+                                    <div class="flex items-center gap-2 text-xs text-slate-500 font-medium flex-wrap"><span class="bg-slate-100 px-2 py-0.5 rounded">${t.category}</span><span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded"><i class="fa-solid fa-wallet text-[10px] mr-1"></i>${displayAccName}</span><span>${new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span></div>
                                 </div>
-                                <div class="flex items-center"><span class="font-bold text-base ${isInc ? 'text-green-600' : 'text-red-400'}">${isInc ? '+' : '-'}₹${t.amount.toLocaleString('en-IN')}</span></div>
-                                <div class="action-buttons hidden absolute top-0 right-0 h-full w-24 bg-gradient-to-l from-white via-white to-transparent flex items-center justify-end pr-2 gap-1">
-                                    <button onclick="event.stopPropagation(); editTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 active:scale-90 transition"><i class="fa-solid fa-pen text-xs"></i></button>
-                                    <button onclick="deleteTransaction('${t.id}', event)" class="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 active:scale-90 transition"><i class="fa-solid fa-trash text-xs"></i></button>
-
-                                </div>
-                            </div>`;
+                                <div class="flex items-center"><span class="font-bold text-base privacy-sensitive ${amountClass}">${sign}₹${Math.abs(t.amount).toLocaleString('en-IN')}</span></div>
+                                 <div class="action-buttons hidden absolute top-0 right-0 h-full w-24 bg-gradient-to-l from-white via-white to-transparent flex items-center justify-end pr-2 gap-1">
+                                     <button onclick="editTransaction('${t.id}'); event.stopPropagation()" class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 active:scale-90 transition"><i class="fa-solid fa-pen text-xs"></i></button>
+                                     <button onclick="deleteTransaction('${t.id}', event); event.stopPropagation()" class="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 active:scale-90 transition"><i class="fa-solid fa-trash text-xs"></i></button>
+                                 </div>
+                             </div>`;
                 }).join('')}
                     </div>`;
             });
@@ -1691,19 +1841,76 @@
         }
         function customDateFilter() { renderAnalytics(new Date(document.getElementById('date-start').value), new Date(document.getElementById('date-end').value)); }
         function renderAnalytics(start, end) {
-            const data = transactions.filter(t => { const d = new Date(t.date); return d >= start && d <= end; });
-            const inc = data.filter(t => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-            const exp = data.filter(t => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
+            const filterAcc = document.getElementById('analytics-account')?.value || 'all';
+            const data = transactions.filter(t => {
+                const d = new Date(t.date);
+                const inDate = d >= start && d <= end;
+                if (!inDate) return false;
+
+                if (filterAcc === 'all') return true;
+
+                // For transfers, check both sides
+                if (t.type === 'transfer') {
+                    return t.accountId === filterAcc || t.toAccountId === filterAcc;
+                }
+                return t.accountId === filterAcc;
+            });
+
+            let inc = 0, exp = 0;
+            const expData = {};
+            const trendData = {};
+
+            data.forEach(t => {
+                const amount = t.amount;
+                // Trend Data Helper
+                const d = new Date(t.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+                if (!trendData[d]) trendData[d] = { i: 0, e: 0 };
+
+                if (t.type === 'income') {
+                    inc += amount;
+                    trendData[d].i += amount;
+                } else if (t.type === 'expense') {
+                    exp += amount;
+                    trendData[d].e += amount;
+                    expData[t.category] = (expData[t.category] || 0) + amount;
+                } else if (t.type === 'transfer') {
+                    // Logic for Transfers
+                    if (filterAcc === 'all') {
+                        // In 'All Accounts' view, we can treat transfers as "Activity".
+                        // Including them in Expense Chart allows visualizing transfer volume.
+                        inc += amount;
+                        exp += amount;
+                        // Use 'Transfer' or t.category (which is usually Transfer)
+                        const cat = t.category || 'Transfer';
+                        expData[cat] = (expData[cat] || 0) + amount;
+
+                        trendData[d].i += amount;
+                        trendData[d].e += amount;
+                    } else {
+                        // Specific Account View
+                        if (t.accountId === filterAcc) {
+                            // Outgoing from this account -> Expense-like
+                            exp += amount;
+                            const cat = t.category || 'Transfer';
+                            expData[cat] = (expData[cat] || 0) + amount;
+                            trendData[d].e += amount;
+                        } else if (t.toAccountId === filterAcc) {
+                            // Incoming to this account -> Income-like
+                            inc += amount;
+                            trendData[d].i += amount;
+                        }
+                    }
+                }
+            });
+
             document.getElementById('analytics-income').textContent = formatCurrency(inc);
             document.getElementById('analytics-expense').textContent = formatCurrency(exp);
             document.getElementById('analytics-balance').textContent = formatCurrency(inc - exp);
 
             // Charts
-            const expData = {}; data.filter(t => t.type === 'expense').forEach(t => expData[t.category] = (expData[t.category] || 0) + t.amount);
             if (charts.expense) charts.expense.destroy();
-            charts.expense = new Chart(document.getElementById('expenseChart'), { type: 'doughnut', data: { labels: Object.keys(expData), datasets: [{ data: Object.values(expData), backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10 } } } } });
+            charts.expense = new Chart(document.getElementById('expenseChart'), { type: 'doughnut', data: { labels: Object.keys(expData), datasets: [{ data: Object.values(expData), backgroundColor: ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#64748b'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 10 } } } } });
 
-            const trendData = {}; data.forEach(t => { const d = new Date(t.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }); if (!trendData[d]) trendData[d] = { i: 0, e: 0 }; if (t.type === 'income') trendData[d].i += t.amount; else trendData[d].e += t.amount; });
             const sorted = Object.keys(trendData).sort((a, b) => new Date(a) - new Date(b));
             if (charts.trend) charts.trend.destroy();
             charts.trend = new Chart(document.getElementById('trendChart'), { type: 'bar', data: { labels: sorted, datasets: [{ label: 'Income', data: sorted.map(d => trendData[d].i), backgroundColor: '#10b981', borderRadius: 4 }, { label: 'Expense', data: sorted.map(d => trendData[d].e), backgroundColor: '#ef4444', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { grid: { display: false } }, y: { beginAtZero: true, grid: { borderDash: [2, 4] } } }, plugins: { legend: { display: false } } } });
