@@ -118,6 +118,12 @@
                 <i class="fa-solid fa-gear"></i>
             </button>
 
+            <button onclick="openAccountsModal()"
+                class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition"
+                title="Manage Accounts">
+                <i class="fa-solid fa-wallet"></i>
+            </button>
+
             <button onclick="toggleAnalytics()"
                 class="bg-slate-100 text-slate-600 w-10 h-10 rounded-full flex items-center justify-center hover:bg-slate-200 active:scale-95 transition">
                 <i class="fa-solid fa-chart-pie"></i>
@@ -170,7 +176,11 @@
 
         <div class="flex justify-between items-center mb-4 px-1">
             <h3 class="font-bold text-lg text-slate-800">Transactions</h3>
-            <div class="flex gap-2">
+            <div class="flex gap-2 flex-wrap justify-end">
+                <select id="filter-account" onchange="renderUI()"
+                    class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none">
+                    <option value="all">All Accounts</option>
+                </select>
                 <select id="filter-date" onchange="renderUI()"
                     class="bg-white border border-slate-200 text-slate-600 text-xs font-bold rounded-lg px-2 py-1 focus:outline-none">
                     <option value="all">All Time</option>
@@ -233,7 +243,7 @@
                         class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
                         placeholder="e.g. Groceries">
                 </div>
-                <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Type</label>
                         <select id="type" onchange="updateCategories()"
@@ -248,6 +258,12 @@
                             class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary appearance-none"></select>
                     </div>
                 </div>
+                <div class="mb-6">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Account</label>
+                    <select id="transaction-account"
+                        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary appearance-none"></select>
+                </div>
+
                 <button type="submit" id="submit-btn"
                     class="w-full bg-primary text-white font-bold py-4 rounded-xl hover:bg-blue-700 active:scale-95 transition shadow-lg shadow-blue-500/30">Add
                     Transaction</button>
@@ -335,7 +351,58 @@
         </div>
     </div>
 
+    <!-- Accounts Management Modal -->
+    <div id="accounts-modal" class="modal fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 sm:p-0">
+        <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="toggleModal('accounts-modal')">
+        </div>
+        <div
+            class="bg-white w-full max-w-md rounded-2xl p-6 relative shadow-2xl z-10 mb-4 sm:mb-0 max-h-[85vh] overflow-y-auto no-scrollbar">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Manage Accounts</h3>
+                <button onclick="toggleModal('accounts-modal')" class="text-slate-400 hover:text-slate-600"><i
+                        class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <!-- Account List -->
+            <div class="mb-4">
+                <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Your Accounts</label>
+                <div id="accounts-list" class="space-y-2 mb-3 max-h-64 overflow-y-auto no-scrollbar"></div>
+            </div>
+
+            <!-- Add/Edit Account Form -->
+            <div id="account-form-section" class="bg-slate-50 rounded-xl p-4 mb-4">
+                <h4 id="account-form-title" class="text-sm font-bold text-slate-700 mb-3">Add New Account</h4>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Account Name</label>
+                        <input type="text" id="account-name" placeholder="e.g. HDFC Savings"
+                            class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Account Type</label>
+                        <select id="account-type"
+                            class="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary appearance-none">
+                            <option value="bank">Bank Account</option>
+                            <option value="credit_card">Credit Card</option>
+                            <option value="upi">UPI (Paytm, GPay, etc.)</option>
+                            <option value="cash">Cash / Wallet</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button onclick="cancelAccountEdit()" id="cancel-account-btn"
+                        class="hidden flex-1 bg-slate-200 text-slate-600 px-4 py-2 rounded-lg text-sm font-bold">Cancel</button>
+                    <button onclick="saveAccount()" id="save-account-btn"
+                        class="flex-1 bg-primary text-white px-4 py-2 rounded-lg text-sm font-bold"><i
+                            class="fa-solid fa-plus mr-1"></i> Add Account</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="analytics-modal" class="modal fixed inset-0 z-50 flex flex-col bg-bg overflow-hidden">
+
         <div class="bg-white px-6 py-4 shadow-sm flex justify-between items-center z-10">
             <h2 class="text-xl font-bold text-slate-900">Analytics</h2>
             <button onclick="toggleAnalytics()"
@@ -543,13 +610,35 @@
 
         const iconMap = { 'Food': 'fa-utensils', 'Transport': 'fa-car', 'Shopping': 'fa-bag-shopping', 'Bills': 'fa-file-invoice-dollar', 'Health': 'fa-heart-pulse', 'Entertainment': 'fa-film', 'Salary': 'fa-money-bill-wave', 'Gift': 'fa-gift', 'Investment': 'fa-chart-line', 'Other': 'fa-circle-question' };
 
+        // --- Accounts State ---
+        const defaultAccount = { id: 'default', name: 'Main Account', type: 'bank', createdAt: new Date().toISOString() };
+        let accounts = [{ ...defaultAccount }];
+        let editingAccountId = null;
+        const accountTypeIcons = {
+            'cash': 'fa-money-bill',
+            'bank': 'fa-building-columns',
+            'credit_card': 'fa-credit-card',
+            'upi': 'fa-mobile-screen',
+            'other': 'fa-wallet'
+        };
+        const accountTypeLabels = {
+            'cash': 'Cash / Wallet',
+            'bank': 'Bank Account',
+            'credit_card': 'Credit Card',
+            'upi': 'UPI',
+            'other': 'Other'
+        };
+
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric' });
             loadCategories();
+            loadAccounts();
             updateCategories();
+            updateAccountSelectors();
             if (!currentUser) loadFromLocal();
         });
+
 
         // ==========================================
         // ENCRYPTION LOGIC (CORE FEATURES)
@@ -886,8 +975,207 @@
             categories[type].forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
         }
 
+        // --- Accounts Management ---
+        function loadAccounts() {
+            const saved = localStorage.getItem('accounts');
+            if (saved) {
+                accounts = JSON.parse(saved);
+                // Ensure at least one account exists
+                if (accounts.length === 0) accounts = [{ ...defaultAccount }];
+            }
+            if (currentUser && isFirebaseReady) {
+                db.collection('users').doc(currentUser.uid).collection('settings').doc('accounts').get()
+                    .then(doc => {
+                        if (doc.exists && doc.data().accounts && doc.data().accounts.length > 0) {
+                            accounts = doc.data().accounts;
+                            updateAccountSelectors();
+                        }
+                    });
+            }
+        }
+
+        function saveAccounts() {
+            localStorage.setItem('accounts', JSON.stringify(accounts));
+            if (currentUser && isFirebaseReady) {
+                db.collection('users').doc(currentUser.uid).collection('settings').doc('accounts').set({
+                    accounts,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+            updateAccountSelectors();
+        }
+
+        function openAccountsModal() {
+            renderAccountsList();
+            cancelAccountEdit();
+            toggleModal('accounts-modal');
+        }
+
+        function renderAccountsList() {
+            const list = document.getElementById('accounts-list');
+            list.innerHTML = '';
+            accounts.forEach(acc => {
+                const item = document.createElement('div');
+                item.className = 'flex items-center justify-between bg-white border border-slate-100 px-3 py-3 rounded-xl group hover:border-slate-200 transition';
+                item.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
+                            <i class="fa-solid ${accountTypeIcons[acc.type] || 'fa-wallet'}"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-slate-800 text-sm">${acc.name}</h4>
+                            <p class="text-xs text-slate-400">${accountTypeLabels[acc.type] || acc.type}</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-1">
+                        <button onclick="editAccount('${acc.id}')" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition">
+                            <i class="fa-solid fa-pen text-xs"></i>
+                        </button>
+                        <button onclick="deleteAccount('${acc.id}')" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition ${accounts.length <= 1 ? 'opacity-30 cursor-not-allowed' : ''}">
+                            <i class="fa-solid fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        function saveAccount() {
+            const name = document.getElementById('account-name').value.trim();
+            const type = document.getElementById('account-type').value;
+
+            if (!name) {
+                showToast('Please enter an account name');
+                return;
+            }
+
+            if (editingAccountId) {
+                // Update existing account
+                const idx = accounts.findIndex(a => a.id === editingAccountId);
+                if (idx !== -1) {
+                    accounts[idx].name = name;
+                    accounts[idx].type = type;
+                }
+                showToast('Account updated!');
+            } else {
+                // Add new account
+                const newAccount = {
+                    id: 'acc_' + Date.now(),
+                    name,
+                    type,
+                    createdAt: new Date().toISOString()
+                };
+                accounts.push(newAccount);
+                showToast('Account added!');
+            }
+
+            saveAccounts();
+            renderAccountsList();
+            cancelAccountEdit();
+        }
+
+        function editAccount(id) {
+            const acc = accounts.find(a => a.id === id);
+            if (!acc) return;
+
+            editingAccountId = id;
+            document.getElementById('account-name').value = acc.name;
+            document.getElementById('account-type').value = acc.type;
+            document.getElementById('account-form-title').textContent = 'Edit Account';
+            document.getElementById('save-account-btn').innerHTML = '<i class="fa-solid fa-check mr-1"></i> Update';
+            document.getElementById('cancel-account-btn').classList.remove('hidden');
+        }
+
+        function cancelAccountEdit() {
+            editingAccountId = null;
+            document.getElementById('account-name').value = '';
+            document.getElementById('account-type').value = 'bank';
+            document.getElementById('account-form-title').textContent = 'Add New Account';
+            document.getElementById('save-account-btn').innerHTML = '<i class="fa-solid fa-plus mr-1"></i> Add Account';
+            document.getElementById('cancel-account-btn').classList.add('hidden');
+        }
+
+        function deleteAccount(id) {
+            if (accounts.length <= 1) {
+                showToast('You must have at least one account');
+                return;
+            }
+
+            const acc = accounts.find(a => a.id === id);
+            if (!acc) return;
+
+            if (confirm(`Delete "${acc.name}"? Transactions linked to this account will be reassigned to your first account.`)) {
+                const defaultAccId = accounts.find(a => a.id !== id)?.id || 'default';
+
+                // Reassign transactions
+                transactions.forEach(tx => {
+                    if (tx.accountId === id) tx.accountId = defaultAccId;
+                });
+
+                accounts = accounts.filter(a => a.id !== id);
+                saveAccounts();
+                renderAccountsList();
+
+                // Save updated transactions
+                if (currentUser) {
+                    // Re-save all transactions with updated accountIds
+                    transactions.forEach(tx => saveData(tx, null));
+                } else {
+                    localStorage.setItem('transactions', JSON.stringify(transactions));
+                }
+
+                showToast('Account deleted');
+                renderUI();
+            }
+        }
+
+        function updateAccountSelectors() {
+            // Update transaction form account dropdown
+            const txSelect = document.getElementById('transaction-account');
+            if (txSelect) {
+                const currentVal = txSelect.value;
+                txSelect.innerHTML = '';
+                accounts.forEach(acc => {
+                    const o = document.createElement('option');
+                    o.value = acc.id;
+                    o.textContent = acc.name;
+                    txSelect.appendChild(o);
+                });
+                if (currentVal && accounts.find(a => a.id === currentVal)) {
+                    txSelect.value = currentVal;
+                }
+            }
+
+            // Update filter dropdown
+            const filterSelect = document.getElementById('filter-account');
+            if (filterSelect) {
+                const currentFilter = filterSelect.value;
+                filterSelect.innerHTML = '<option value="all">All Accounts</option>';
+                accounts.forEach(acc => {
+                    const o = document.createElement('option');
+                    o.value = acc.id;
+                    o.textContent = acc.name;
+                    filterSelect.appendChild(o);
+                });
+                if (currentFilter !== 'all' && accounts.find(a => a.id === currentFilter)) {
+                    filterSelect.value = currentFilter;
+                }
+            }
+        }
+
+        function getAccountName(accountId) {
+            // If no accountId, return default account name
+            if (!accountId) {
+                return accounts[0]?.name || 'Main Account';
+            }
+            const acc = accounts.find(a => a.id === accountId);
+            // If account not found, return default account name
+            return acc ? acc.name : (accounts[0]?.name || 'Main Account');
+        }
+
         // --- Core UI Logic ---
         function formatCurrency(amt) { return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amt); }
+
 
         function addTransaction(e) {
             e.preventDefault();
@@ -896,13 +1184,14 @@
             const type = document.getElementById('type').value;
             const cat = document.getElementById('category').value;
             const date = new Date(document.getElementById('transaction-date').value).toISOString();
+            const accountId = document.getElementById('transaction-account').value || accounts[0]?.id || 'default';
 
             if (editingTransactionId) {
-                const updated = { id: editingTransactionId, date, amount: amt, description: desc, type, category: cat };
+                const updated = { id: editingTransactionId, date, amount: amt, description: desc, type, category: cat, accountId };
                 if (!currentUser) transactions[transactions.findIndex(t => String(t.id) === String(editingTransactionId))] = updated;
                 saveData(updated, null);
             } else {
-                const newTx = { id: Date.now(), date, amount: amt, description: desc, type, category: cat };
+                const newTx = { id: Date.now(), date, amount: amt, description: desc, type, category: cat, accountId };
                 if (!currentUser) transactions.unshift(newTx);
                 saveData(newTx, null);
             }
@@ -920,6 +1209,13 @@
             updateCategories();
             document.getElementById('category').value = tx.category;
             document.getElementById('transaction-date').value = tx.date.split('T')[0];
+            // Set account
+            const accSelect = document.getElementById('transaction-account');
+            if (accSelect && tx.accountId) {
+                accSelect.value = tx.accountId;
+            } else if (accSelect && accounts.length > 0) {
+                accSelect.value = accounts[0].id;
+            }
             document.getElementById('modal-title').textContent = "Edit Transaction";
             document.getElementById('submit-btn').textContent = "Update Transaction";
             toggleModal('add-modal');
@@ -932,8 +1228,15 @@
             document.getElementById('modal-title').textContent = "New Transaction";
             document.getElementById('submit-btn').textContent = "Add Transaction";
             updateCategories();
+            updateAccountSelectors();
+            // Default to first account
+            const accSelect = document.getElementById('transaction-account');
+            if (accSelect && accounts.length > 0) {
+                accSelect.value = accounts[0].id;
+            }
             toggleModal('add-modal');
         }
+
         let pendingDeleteId = null;
 
         function deleteTransaction(id, event) {
@@ -964,8 +1267,22 @@
             const list = document.getElementById('transaction-list');
             const filterType = document.getElementById('filter-type').value;
             const filterDate = document.getElementById('filter-date').value;
+            const filterAccount = document.getElementById('filter-account')?.value || 'all';
             const now = new Date();
             let data = transactions;
+
+            // Account filter
+            // Account filter - also include transactions without accountId when filtering by default account
+            if (filterAccount !== 'all') {
+                const defaultAccId = accounts[0]?.id || 'default';
+                data = data.filter(t => {
+                    if (filterAccount === defaultAccId) {
+                        // Include transactions that match OR have no accountId
+                        return t.accountId === filterAccount || !t.accountId;
+                    }
+                    return t.accountId === filterAccount;
+                });
+            }
 
             if (filterDate === 'thisMonth') {
                 data = data.filter(t => new Date(t.date) >= new Date(now.getFullYear(), now.getMonth(), 1) && new Date(t.date) <= new Date(now.getFullYear(), now.getMonth() + 1, 0));
@@ -1009,17 +1326,19 @@
                     <div id="group-${gid}" class="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4 overflow-hidden transition-all" style="max-height: 2000px">
                         ${g.items.map(t => {
                     const isInc = t.type === 'income';
+                    const accName = getAccountName(t.accountId);
                     return `
                             <div class="transaction-card bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex gap-3 relative group" onclick="toggleCardActions(this)">
                                 <div class="w-10 h-10 rounded-xl ${isInc ? 'bg-green-100 text-green-600' : 'bg-slate-100 text-slate-500'} flex items-center justify-center text-lg shadow-sm shrink-0"><i class="fa-solid ${iconMap[t.category] || 'fa-circle'}"></i></div>
                                 <div class="flex-1 min-w-0">
                                     <h4 class="font-bold text-slate-800 text-base leading-tight mb-0.5 truncate">${t.description}</h4>
-                                    <div class="flex items-center gap-2 text-xs text-slate-500 font-medium"><span class="bg-slate-100 px-2 py-0.5 rounded">${t.category}</span><span>${new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span></div>
+                                    <div class="flex items-center gap-2 text-xs text-slate-500 font-medium flex-wrap"><span class="bg-slate-100 px-2 py-0.5 rounded">${t.category}</span><span class="bg-blue-50 text-blue-600 px-2 py-0.5 rounded"><i class="fa-solid fa-wallet text-[10px] mr-1"></i>${accName}</span><span>${new Date(t.date).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span></div>
                                 </div>
                                 <div class="flex items-center"><span class="font-bold text-base ${isInc ? 'text-green-600' : 'text-red-400'}">${isInc ? '+' : '-'}₹${t.amount.toLocaleString('en-IN')}</span></div>
                                 <div class="action-buttons hidden absolute top-0 right-0 h-full w-24 bg-gradient-to-l from-white via-white to-transparent flex items-center justify-end pr-2 gap-1">
                                     <button onclick="event.stopPropagation(); editTransaction('${t.id}')" class="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 active:scale-90 transition"><i class="fa-solid fa-pen text-xs"></i></button>
                                     <button onclick="deleteTransaction('${t.id}', event)" class="w-8 h-8 rounded-full bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 active:scale-90 transition"><i class="fa-solid fa-trash text-xs"></i></button>
+
                                 </div>
                             </div>`;
                 }).join('')}
