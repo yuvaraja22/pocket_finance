@@ -1062,9 +1062,15 @@
 
                     // Auto-prompt if data is locked and we aren't already asking
                     if (decryptionFailed) {
-                        const modal = document.getElementById('pin-modal');
-                        if (modal && !modal.classList.contains('active')) {
-                            promptToUnlock();
+                        if (!usingPin) {
+                            // Only prompt if we haven't tried a PIN yet (default state)
+                            const modal = document.getElementById('pin-modal');
+                            if (modal && !modal.classList.contains('active')) {
+                                promptToUnlock();
+                            }
+                        } else {
+                            // We used a PIN but it failed -> Wrong PIN
+                            showToast('Decryption failed. Incorrect PIN?');
                         }
                     }
                 });
