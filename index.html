@@ -864,14 +864,31 @@
         function decryptData(docData) {
             if (!docData.isEncrypted) return docData; // Legacy data support
 
-            try {
-                const bytes = CryptoJS.AES.decrypt(docData.payload, userEncryptionKey);
-                const decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
-                return decryptedData;
-            } catch (e) {
-                console.error("Decryption failed. Wrong Key?");
-                return null; // Return null on failure
+            // Helper to try decrypting with a specific key
+            const tryKey = (key) => {
+                if (!key) return null;
+                try {
+                    const bytes = CryptoJS.AES.decrypt(docData.payload, key);
+                    const utf8 = bytes.toString(CryptoJS.enc.Utf8);
+                    if (!utf8) throw new Error("Empty decryption result");
+                    return JSON.parse(utf8);
+                } catch (e) {
+                    return null;
+                }
+            };
+
+            // 1. Try Current Key (PIN or default UID)
+            let result = tryKey(userEncryptionKey);
+            if (result) return result;
+
+            // 2. Fallback: Try UID (if we are currently using a different key like PIN)
+            if (currentUser && userEncryptionKey !== currentUser.uid) {
+                result = tryKey(currentUser.uid);
+                if (result) return result;
             }
+
+            console.error("Decryption failed with all available keys.");
+            return null;
         }
 
         function enablePinEncryption() {
