@@ -734,6 +734,7 @@
                 updateAuthUI(user);
                 if (user) {
                     checkEncryptionMode(user);
+                    loadAccountsFromCloud();
                 } else {
                     userEncryptionKey = null;
                     usingPin = false;
@@ -778,6 +779,8 @@
             'upi': 'UPI',
             'other': 'Other'
         };
+
+        let accountUnsubscribe = null;
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
@@ -999,6 +1002,7 @@
 
         function googleLogout() {
             localStorage.removeItem('user_privacy_pin'); // Clear PIN on logout
+            if (accountUnsubscribe) accountUnsubscribe();
             auth.signOut();
             transactions = [];
             document.getElementById('pin-input').value = ''; // Clear modal input
@@ -1234,15 +1238,31 @@
                 // Ensure at least one account exists
                 if (accounts.length === 0) accounts = [{ ...defaultAccount }];
             }
-            if (currentUser && isFirebaseReady) {
-                db.collection('users').doc(currentUser.uid).collection('settings').doc('accounts').get()
-                    .then(doc => {
-                        if (doc.exists && doc.data().accounts && doc.data().accounts.length > 0) {
-                            accounts = doc.data().accounts;
-                            updateAccountSelectors();
+        }
+
+        function loadAccountsFromCloud() {
+            if (!currentUser) return;
+
+            if (accountUnsubscribe) accountUnsubscribe();
+
+            accountUnsubscribe = db.collection('users').doc(currentUser.uid).collection('settings').doc('accounts')
+                .onSnapshot(doc => {
+                    if (doc.exists && doc.data().accounts) {
+                        accounts = doc.data().accounts;
+                    } else {
+                        // If no cloud data yet, keep local or default, but maybe sync local UP to cloud?
+                        // For now, let's just ensure we don't overwrite with empty if doc doesn't exist
+                        // But if doc exists and is empty list, that's valid.
+                        if (doc.exists && doc.data().accounts?.length === 0) {
+                            accounts = [{ ...defaultAccount }];
                         }
-                    });
-            }
+                    }
+                    // Ensure consistency
+                    if (accounts.length === 0) accounts = [{ ...defaultAccount }];
+
+                    updateAccountSelectors();
+                    renderAccountsList(); // Also update the list if modal is open
+                });
         }
 
         function saveAccounts() {
